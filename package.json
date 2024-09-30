@@ -12,7 +12,8 @@
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.0"
+    "swagger-ui-express": "^5.0.0",
+    "vercel": "^37.6.0"
   },
   "name": "admin-project",
   "version": "1.0.0",
