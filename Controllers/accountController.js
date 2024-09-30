@@ -170,44 +170,40 @@ exports.createAccount = async (req, res) => {
   
   exports.getAccounts = async (req, res) => {
     try {
-      const { role, id } = req.user;
+      const loggedInUser = req.user; 
+  
       let accounts;
-      if (role === 'admin') {
+      let accountsWithAgentInfo = [];
+  
+      if (loggedInUser.role === 'admin') {
+        // For admin, fetch all accounts
         accounts = await Account.find().populate('agentHolder', 'firstName lastName');
-      } 
-      else if (role === 'agent') {
-        accounts = await Account.find({ agentHolder: id }).populate('agentHolder', 'firstName lastName');
-      } 
-      else {
-        return res.status(403).json({
-          status: 'RS_ERROR',
-          message: 'Unauthorized to view accounts',
+        console.log(accounts);
+      } else if (loggedInUser.role === 'agent') {
+        // For agent, fetch only their accounts
+        accounts = await Account.find({ agentHolder: loggedInUser.id }).populate('agentHolder', 'firstName lastName');
+      } else {
+        return res.status(403).json({ status: "RS_ERROR", message: 'Unauthorized access' });
+      }
+      console.log("Yaha aaya");
+      for (let account of accounts) {
+        console.log("yaha aaya");
+        accountsWithAgentInfo.push({
+          ...account.toObject(),
+          agentHolderName: `${account.agentHolder.firstName} ${account.agentHolder.lastName}`,
+          agentHolderId: account.agentHolder._id
         });
       }
   
-      if (!accounts.length) {
-        return res.status(404).json({
-          status: 'RS_OK',
-          message: 'No accounts found',
-        });
-      }
-  
-      const formattedAccounts = accounts.map(account => ({
-        ...account.toObject(),
-        agentName: `${account.agentHolder.firstName} ${account.agentHolder.lastName}`, 
-      }));
-      res.json({
-        status: 'RS_OK',
-        data: formattedAccounts,
-      });
+      res.json({ status: "RS_OK", data: accountsWithAgentInfo });
     } catch (error) {
-      console.error('Error fetching accounts:', error);
-      res.status(500).json({
-        status: 'RS_ERROR',
-        message: 'Internal Server Error',
-      });
+      console.error('Error in getAccounts:', error);
+      res.status(500).json({ status: "RS_ERROR", message: 'Internal server error' });
     }
   };
+  
+  
+
   
   
   
