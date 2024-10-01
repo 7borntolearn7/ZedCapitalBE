@@ -36,10 +36,19 @@ const AccountSchema = new Schema({
     default: false,
   },
   
-  agentHolder: {
+  agentHolderId: {
     type: Schema.Types.ObjectId,
     ref: "User", 
     required: true,
+  },
+  agentHolderName:{
+    type: String,
+    ref:"User",
+    required:true,
+  },
+  active:{
+    type:Boolean,
+    required:true,
   },
   createdOn: {
     type: Date,

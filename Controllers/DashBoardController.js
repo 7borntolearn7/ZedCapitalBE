@@ -11,7 +11,7 @@ exports.getCounts = async (req, res) => {
     const userRole = req.user.role; 
 
     if (userRole === "agent") {
-      const accountCount = await Account.countDocuments({ agentHolder: userId });
+      const accountCount = await Account.countDocuments({ agentHolderId: userId });
       res.json({
         status: "RS_OK",
         data: {

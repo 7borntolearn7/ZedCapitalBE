@@ -1,4 +1,5 @@
 const User = require("../Models/User");
+const Account= require("../Models/Account");
 
 exports.createAgent = async (req, res) => {
   try {
@@ -48,88 +49,122 @@ exports.createAgent = async (req, res) => {
   }
 };
 
-
-  exports.updateAgent = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updateFields = {};
-      const { firstName, lastName, email,password, mobile, active } = req.body;
-  
-      if (email) {
-        const existingEmailUser = await User.findOne({ email, _id: { $ne: id } });
-        if (existingEmailUser) {
-          return res.status(400).json({ status: "RS_ERROR", message: "Email already exists" });
-        }
-        updateFields.email = email;
+exports.updateAgent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = {};
+    const { firstName, lastName, email, password, mobile, active } = req.body;
+    console.log(id);
+    if (email) {
+      const existingEmailUser = await User.findOne({ email, _id: { $ne: id } });
+      if (existingEmailUser) {
+        return res.status(400).json({ status: "RS_ERROR", message: "Email already exists" });
       }
-      if (mobile) {
-        const existingMobileUser = await User.findOne({ mobile, _id: { $ne: id } });
-        if (existingMobileUser) {
-          return res.status(400).json({ status: "RS_ERROR", message: "Mobile number already exists" });
-        }
-        updateFields.mobile = mobile;
-      }
-  
-      if (firstName) updateFields.firstName = firstName;
-      if (lastName) updateFields.lastName = lastName;
-      if (password) updateFields.password = password;
-      if (typeof active === "boolean") {
-        updateFields.active = active.toString();
-      } else if (typeof active === "string") {
-        updateFields.active = active;
-      }
-      if (req.user) updateFields.updatedBy = req.user.firstName;
-  
-      const updatedAgent = await User.findByIdAndUpdate(id, updateFields, {
-        new: true,
-      }).select("-jwtTokens");
-  
-      if (!updatedAgent) {
-        return res.status(404).json({ status: "RS_ERROR", message: "Manager not found" });
-      }
-  
-      res.json({ status: "RS_OK", data: updatedAgent });
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
+      updateFields.email = email;
     }
-  };
-  
-  
-  exports.deleteAgent = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const deleteAgent = await User.findByIdAndDelete(id);
-  
-      if (!deleteAgent) {
-        return res
-          .status(404)
-          .json({ status: "RS_ERROR", message: "Agent not found" });
+
+    if (mobile) {
+      const existingMobileUser = await User.findOne({ mobile, _id: { $ne: id } });
+      if (existingMobileUser) {
+        return res.status(400).json({ status: "RS_ERROR", message: "Mobile number already exists" });
       }
-  
-      res.json({ status: "RS_OK", message: "Agent deleted successfully" });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ status: "RS_ERROR", message: "Internal Server Error" });
+      updateFields.mobile = mobile;
     }
-  };
+
+    if (firstName) updateFields.firstName = firstName;
+    if (lastName) updateFields.lastName = lastName;
+    if (password) updateFields.password = password;
+    
+    if (typeof active === "boolean") {
+      updateFields.active = active;
+    } else if (typeof active === "string") {
+      updateFields.active = active.toLowerCase() === 'true';
+    }
+
+    if (req.user) updateFields.updatedBy = req.user.firstName;
+
+    const updatedAgent = await User.findByIdAndUpdate(id, updateFields, {
+      new: true,
+    }).select("-jwtTokens");
+
+    if (!updatedAgent) {
+      return res.status(404).json({ status: "RS_ERROR", message: "Agent not found" });
+    }
+
+    // If the agent is set to inactive, update related accounts
+    if (updateFields.active === false) {
+      try {
+        console.log(id);
+        const accountsToUpdate = await Account.find();
+        console.log("Accounts found for update:", accountsToUpdate); // Double-check what’s being returned
+        
+        if (accountsToUpdate.length > 0) {
+          const bulkOps = accountsToUpdate.map(account => ({
+            updateOne: {
+              filter: { _id: account._id },
+              update: { $set: { active: false } },
+            }
+          }));
+          
+          const result = await Account.bulkWrite(bulkOps);
+          console.log(result);
+        }
+      } catch (error) {
+        console.error("Error updating accounts:", error);
+      }
+    }
+    
+
+    res.json({ status: "RS_OK", data: updatedAgent,message:"Agent Updated Successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
+  }
+};
+
+exports.deleteAgent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // First, update all related accounts to inactive
+    await Account.updateMany(
+      { agentHolderId: id },
+      { $set: { active : false } }
+    );
+
+    // Then delete the agent
+    const deletedAgent = await User.findByIdAndDelete(id);
+
+    if (!deletedAgent) {
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Agent not found" });
+    }
+
+    res.json({ status: "RS_OK", message: "Agent deleted successfully and related accounts set to inactive" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ status: "RS_ERROR", message: "Internal Server Error" });
+  }
+};
   
 
-  exports.getAllAgents = async (req, res) => {
+exports.getAllAgents = async (req, res) => {
     try {
-      const managers = await User.find({ role: "agent" }).select("-jwtTokens");
+      const agents = await User.find({ role: "agent" }).select("-jwtTokens");
   
-      if (!managers || managers.length === 0) {
+      if (!agents || agents.length === 0) {
         return res
           .status(404)
           .json({ status: "RS_ERROR", message: "No managers found" });
       }
   
-      res.json({ status: "RS_OK", data: managers });
+      res.json({ status: "RS_OK", data: agents });
     } catch (error) {
       res
         .status(500)
         .json({ status: "RS_ERROR", message: "Internal Server Error" });
     }
-  };
+};
