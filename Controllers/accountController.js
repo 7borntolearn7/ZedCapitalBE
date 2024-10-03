@@ -2,6 +2,7 @@ const CryptoJS = require("crypto-js");
 const jwt = require("jsonwebtoken");
 const Account = require("../Models/Account");
 const User= require("../Models/User");
+const bcrypt = require('bcrypt');
 
 require("dotenv").config({ path: "./.env" });
 const dayjs = require('dayjs');
@@ -17,7 +18,7 @@ exports.createAccount = async (req, res) => {
       messageCheck,
       emailCheck,
       agentId,
-      active
+      active,
     } = req.body;
 
     // Ensure all required fields are present
@@ -31,9 +32,7 @@ exports.createAccount = async (req, res) => {
     // Check if an account with the same AccountLoginId already exists
     const existingAccount = await Account.findOne({ AccountLoginId });
     if (existingAccount) {
-      return res
-        .status(400)
-        .json({ status: "RS_ERROR", message: "Account already exists" });
+      return res.status(400).json({ status: "RS_ERROR", message: "Account already exists" });
     }
 
     let accountHolder = null;
@@ -57,7 +56,7 @@ exports.createAccount = async (req, res) => {
         });
       }
 
-      // Check if the agent is active, if not, throw an error
+      // Check if the agent is active
       if (!agent.active) {
         return res.status(400).json({
           status: "RS_ERROR",
@@ -80,10 +79,14 @@ exports.createAccount = async (req, res) => {
       });
     }
 
+    // Hash the AccountPassword for security
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(AccountPassword, saltRounds);
+
     // Create the new account
     const newAccount = new Account({
       AccountLoginId,
-      AccountPassword,
+      AccountPassword: hashedPassword, // Save the hashed password
       ServerName,
       EquityType,
       EquityThreshhold,
@@ -93,12 +96,20 @@ exports.createAccount = async (req, res) => {
       updatedBy: req.user.firstName,
       agentHolderId: accountHolder,
       agentHolderName: agentHolderName,
-      active: active !== undefined ? active : true, 
+      active: active !== undefined ? active : true, // Set active to true by default
     });
 
     // Save the new account to the database
     const savedAccount = await newAccount.save();
-    res.json({ status: "RS_OK", data: savedAccount, message: "Account Created Successfully" });
+
+    // Remove the password from the response
+    const { AccountPassword: _ignored, ...accountResponse } = savedAccount.toObject(); 
+
+    res.status(201).json({
+      status: "RS_OK",
+      data: accountResponse, // Send the account without the password
+      message: "Account Created Successfully",
+    });
 
   } catch (error) {
     console.error(error);
@@ -106,22 +117,21 @@ exports.createAccount = async (req, res) => {
   }
 };
 
-  
-  
+ 
 exports.updateAccount = async (req, res) => {
   try {
     const { id } = req.params;
     const updateFields = {};
     const {
       AccountLoginId,
-      AccountPassword,
       ServerName,
       EquityType,
       EquityThreshhold,
       messageCheck,
       emailCheck,
       agentId,
-      active
+      active,
+      userPassword 
     } = req.body;
 
     const accountToUpdate = await Account.findById(id);
@@ -160,9 +170,9 @@ exports.updateAccount = async (req, res) => {
       }
     }
 
-    // If the admin is updating the account, check if the agentId is provided
+    // Role-based authorization checks
     if (req.user.role === 'admin') {
-      // (The agentId check is already handled above)
+      // Admin can update any account (agentId check handled above)
     } else if (req.user.role === 'agent') {
       // Ensure agents can only update their own accounts
       if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
@@ -180,7 +190,6 @@ exports.updateAccount = async (req, res) => {
 
     // Handle other field updates
     if (AccountLoginId) updateFields.AccountLoginId = AccountLoginId;
-    if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
     if (EquityType) updateFields.EquityType = EquityType;
     if (EquityThreshhold) updateFields.EquityThreshhold = EquityThreshhold;
@@ -197,10 +206,26 @@ exports.updateAccount = async (req, res) => {
       updateFields.emailCheck = emailCheck.toLowerCase() === 'true';
     }
 
-    if (typeof active === "boolean") {
-      updateFields.active = active;
-    } else if (typeof active === "string") {
-      updateFields.active = active.toLowerCase() === 'true';
+    // Check if active status is being updated
+    if (typeof active === "boolean" || typeof active === "string") {
+      const isActiveBoolean = typeof active === 'boolean' ? active : active.toLowerCase() === 'true';
+
+      // Ensure userPassword is provided when updating active status
+      if (!userPassword) {
+        return res.status(400).json({ status: "RS_ERROR", message: "User password required" });
+      }
+
+      // Fetch the logged-in user (req.user should contain the logged-in user's details)
+      const loggedInUser = await User.findById(req.user.id);
+
+      // Check if the provided userPassword matches the logged-in user's stored hashed password
+      const isPasswordValid = await bcrypt.compare(userPassword, loggedInUser.password);
+      if (!isPasswordValid) {
+        return res.status(400).json({ status: "RS_ERROR", message: "Incorrect user password" });
+      }
+
+      // If the password is valid, proceed with the status update
+      updateFields.active = isActiveBoolean;
     }
 
     if (req.user) updateFields.updatedBy = req.user.firstName;
@@ -219,9 +244,85 @@ exports.updateAccount = async (req, res) => {
   }
 };
 
+exports.updateAccountPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldPassword, newPassword, confirmPassword } = req.body;
 
-  
-  
+    // Ensure all fields are provided
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "All fields are required",
+      });
+    }
+
+    // Check if new password and confirm password match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "New password and confirm password do not match",
+      });
+    }
+
+    // Find the account using the id parameter
+    const account = await Account.findById(id);
+    if (!account) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "Account not found",
+      });
+    }
+
+    // Ensure the agentHolderId exists in the User collection
+    const agent = await User.findById(account.agentHolderId);
+    if (!agent) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "No agent associated with this account",
+      });
+    }
+
+    // Ensure the agent is active
+    if (!agent.active) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Cannot update password because the associated agent is inactive",
+      });
+    }
+
+    // Verify old password
+    const isMatch = await bcrypt.compare(oldPassword, account.AccountPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Old password is incorrect",
+      });
+    }
+
+    // Hash the new password
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update the account's password
+    account.AccountPassword = hashedNewPassword;
+    await account.save();
+
+    res.json({
+      status: "RS_OK",
+      message: "Password updated successfully",
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
+
+
   
 exports.getAccounts = async (req, res) => {
   try {
@@ -229,16 +330,17 @@ exports.getAccounts = async (req, res) => {
     let accounts;
 
     if (loggedInUser.role === 'admin') {
-      accounts = await Account.find() 
+      accounts = await Account.find();
     } else if (loggedInUser.role === 'agent') {
-      accounts = await Account.find({ agentHolderId: loggedInUser.id })
+      accounts = await Account.find({ agentHolderId: loggedInUser.id });
     } else {
       return res.status(403).json({ status: "RS_ERROR", message: 'Unauthorized access' });
     }
+
+    // Map accounts without the password
     const accountsData = accounts.map(account => ({
       _id: account._id,
       AccountLoginId: account.AccountLoginId,
-      AccountPassword: account.AccountPassword,
       ServerName: account.ServerName,
       EquityType: account.EquityType,
       EquityThreshhold: account.EquityThreshhold,
@@ -258,9 +360,8 @@ exports.getAccounts = async (req, res) => {
   }
 };
 
-  
-  
-  exports.deleteAccount = async (req, res) => {
+
+exports.deleteAccount = async (req, res) => {
     try {
       const { userId } = req.params; 
       const { role, id } = req.user; 
@@ -289,5 +390,5 @@ exports.getAccounts = async (req, res) => {
         .status(500)
         .json({ status: "RS_ERROR", message: "Internal Server Error" });
     }
-  };
+};
   

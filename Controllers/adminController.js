@@ -2,22 +2,25 @@ const CryptoJS = require("crypto-js");
 const jwt = require("jsonwebtoken");
 const User = require("../Models/User");
 require("dotenv").config({ path: "./.env" });
+const bcrypt = require('bcrypt');
 const dayjs = require('dayjs');
 
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "All fields are required",
+        message: "Email and password are required",
       });
     }
 
-    res.clearCookie("token"); 
+    res.clearCookie("token");
+
     const user = await User.findOne({ email });
 
-    if (!user || user.password !== password) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({
         status: "RS_ERROR",
         message: "Invalid Email or Password",
@@ -36,18 +39,17 @@ exports.login = async (req, res) => {
       email: user.email,
       id: user._id,
       role: user.role,
-      random: Math.random().toString(36).substr(2), 
+      random: Math.random().toString(36).substr(2),
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: "2h",
     });
 
-   
     user.jwtTokens = token;
-    await user.save(); 
+    await user.save();
 
-    let responseData = {
+    const responseData = {
       status: "RS_OK",
       message: "Login successful",
       firstName: user.firstName,
@@ -56,12 +58,12 @@ exports.login = async (req, res) => {
       id: user._id,
       role: user.role,
       active: user.active,
-      token: token, 
+      token: token,
     };
 
     res
-      .set("Authorization", `Bearer ${token}`)
-      .json({ responseData });
+      .set("Authorization", `Bearer ${token}`) 
+      .json(responseData);
   } catch (error) {
     console.error(error);
 
@@ -72,7 +74,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Handle other errors
+    // Handle any other errors
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
@@ -92,76 +94,90 @@ exports.createAdmin = async (req, res) => {
       active,
     } = req.body;
 
+    // Check for required fields
     if (!firstName || !lastName || !email || !password || !mobile) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "First name,Last name, email,mobile and password are required",
+        message: "First name, Last name, email, mobile, and password are required",
       });
     }
 
+    // Check if the admin already exists
     const existingAdmin = await User.findOne({ email });
-
     if (existingAdmin) {
       return res
         .status(400)
         .json({ status: "RS_ERROR", message: "Admin already exists" });
     }
 
+    // Hash the password before saving it to the database
+    const saltRounds = 10;  // 10 is a good balance between security and performance
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create a new admin user
     const newAdmin = new User({
       firstName,
       lastName,
       email,
       mobile,
-      password,
+      password: hashedPassword,  // Store the hashed password
       active,
       role: "admin",
       createdBy: req.user.firstName,
       updatedBy: req.user.firstName,
     });
 
+    // Save the new admin to the database
     const savedAdmin = await newAdmin.save();
-    res.json({ status: "RS_OK", data: savedAdmin });
+    
+    // Convert the saved admin to a plain object and exclude the password field
+    const { password: _, ...adminData } = savedAdmin.toObject(); // Destructure to remove password
+
+    // Respond with success without the password field
+    res.json({ status: "RS_OK", data: adminData });
   } catch (error) {
     console.log(error);
-    res
-      .status(500)
-      .json({ status: "RS_ERROR", message: "Internal Server Error" });
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
   }
-};
+}
 
-exports.updateAdmin = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateFields = {};
-    const { firstName, lastName, email, mobile,active } = req.body;
-    if (firstName) updateFields.firstName = firstName;
-    if (lastName) updateFields.lastName = lastName;
-    if (email) updateFields.email = email;
-    if (mobile) updateFields.mobile = mobile;
-    if (typeof active === "boolean") {
-      updateFields.active = active.toString();
-    } else if (typeof active === "string") {
-      updateFields.active = active;
-    }
-    if (req.user) updateFields.updatedBy = req.user.firstName;
 
-    const updatedAdmin = await User.findByIdAndUpdate(id, updateFields, {
-      new: true,
-    }).select("-jwtTokens");
+// exports.updateAdmin = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const updateFields = {};
+//     const { firstName, lastName, email, mobile,active } = req.body;
+//     if (firstName) updateFields.firstName = firstName;
+//     if (lastName) updateFields.lastName = lastName;
+//     if (email) updateFields.email = email;
+//     if (mobile) updateFields.mobile = mobile;
+//     if (typeof active === "boolean") {
+//       updateFields.active = active.toString();
+//     } else if (typeof active === "string") {
+//       updateFields.active = active;
+//     }
+//     if (req.user) updateFields.updatedBy = req.user.firstName;
 
-    if (!updatedAdmin) {
-      return res
-        .status(404)
-        .json({ status: "RS_ERROR", message: "Admin not found" });
-    }
+//     const updatedAdmin = await User.findByIdAndUpdate(id, updateFields, {
+//       new: true,
+//     }).select("-jwtTokens");
 
-    res.json({ status: "RS_OK", data: updatedAdmin });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ status: "RS_ERROR", message: "Internal Server Error" });
-  }
-};
+//     if (!updatedAdmin) {
+//       return res
+//         .status(404)
+//         .json({ status: "RS_ERROR", message: "Admin not found" });
+//     }
+
+//     res.json({ status: "RS_OK", data: updatedAdmin });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ status: "RS_ERROR", message: "Internal Server Error" });
+//   }
+// };
 
 
 exports.getAllAdmins = async (req, res) => {
@@ -182,24 +198,24 @@ exports.getAllAdmins = async (req, res) => {
   }
 };
 
-exports.deleteAdmin = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const deletedAdmin = await User.findByIdAndDelete(id);
+// exports.deleteAdmin = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const deletedAdmin = await User.findByIdAndDelete(id);
 
-    if (!deletedAdmin) {
-      return res
-        .status(404)
-        .json({ status: "RS_ERROR", message: "Admin not found" });
-    }
+//     if (!deletedAdmin) {
+//       return res
+//         .status(404)
+//         .json({ status: "RS_ERROR", message: "Admin not found" });
+//     }
 
-    res.json({ status: "RS_OK", message: "Admin deleted successfully" });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ status: "RS_ERROR", message: "Internal Server Error" });
-  }
-};
+//     res.json({ status: "RS_OK", message: "Admin deleted successfully" });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ status: "RS_ERROR", message: "Internal Server Error" });
+//   }
+// };
 
 exports.changePassword = async (req, res) => {
   try {

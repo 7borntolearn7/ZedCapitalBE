@@ -8,16 +8,16 @@ const { auth } = require("../Middlewares/auth");
 
 router.post("/createAdmin",auth,  adminController.createAdmin);
 router.get("/getCounts",auth,DashBoardController.getCounts);
-router.put("/updateAdmin/:id", auth, adminController.updateAdmin);
-router.delete("/deleteAdmin/:id", auth, adminController.deleteAdmin);
 router.get("/getAllAdmins",auth,adminController.getAllAdmins);
 router.post("/login",adminController.login);
 router.post("/createAgent",auth, agentController.createAgent);
 router.put("/updateAgent/:id", auth, agentController.updateAgent);
+router.put("/updateAgentPassword/:id",auth,agentController.updateAgentPassword);
 router.get("/getAgents", auth, agentController.getAllAgents);
 router.delete("/deleteAgent/:id", auth, agentController.deleteAgent);
 router.post("/createAccount",auth,AccountController.createAccount);
 router.put("/updateAccount/:id",auth,AccountController.updateAccount);
+router.put("/updateAccountPassword/:id",auth,AccountController.updateAccountPassword);
 router.delete("/deleteAccount/:userId",auth,AccountController.deleteAccount);
 router.get("/getAccounts",auth,AccountController.getAccounts);
 
