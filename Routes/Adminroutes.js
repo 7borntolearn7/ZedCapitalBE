@@ -20,8 +20,8 @@ router.put("/updateAccount/:id",auth,AccountController.updateAccount);
 router.put("/updateAccountPassword/:id",auth,AccountController.updateAccountPassword);
 router.delete("/deleteAccount/:userId",auth,AccountController.deleteAccount);
 router.get("/getAccounts",auth,AccountController.getAccounts);
-router.post("/account-alert",auth, AccountController.getAccountAlert);
-router.post("/trade-account-info",auth, AccountController.getTradeAccountInfo);
+router.get("/account-alert",auth, AccountController.getAccountAlert);
+router.get("/trade-account-info",auth, AccountController.getTradeAccountInfo);
 router.put("/updateAlert/:id",auth,AccountController.updateAccountAlert);
 
 
