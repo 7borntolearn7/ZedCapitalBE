@@ -106,10 +106,11 @@ exports.updateAgent = async (req, res) => {
       }
 
       // Fetch the logged-in user (req.user should contain the logged-in user's details)
-      const loggedInUser = await User.findById(req.user._id);
-
+      const loggedInUser = await User.findById(req.user.id);
+      
       // Check if the provided password matches the stored hashed password
       const isPasswordValid = await bcrypt.compare(password, loggedInUser.password);
+      console.log("kya yeh valid hai",isPasswordValid);
       if (!isPasswordValid) {
         return res.status(400).json({ status: "RS_ERROR", message: "Incorrect user password" });
       }
