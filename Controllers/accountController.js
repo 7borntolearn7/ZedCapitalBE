@@ -2,6 +2,8 @@ const CryptoJS = require("crypto-js");
 const jwt = require("jsonwebtoken");
 const Account = require("../Models/Account");
 const User= require("../Models/User");
+const TradeAccountInfo = require("../Models/TradeAccountInfo");
+const AccountAlert = require("../Models/AccountAlertInfo");
 const bcrypt = require('bcrypt');
 
 require("dotenv").config({ path: "./.env" });
@@ -392,3 +394,222 @@ exports.deleteAccount = async (req, res) => {
     }
 };
   
+exports.getAccountAlert = async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+    const { accountLoginId } = req.body;
+    let accountAlerts;
+    if (accountLoginId) {
+      const account = await Account.findOne({ AccountLoginId: accountLoginId });
+      
+      if (!account) {
+        return res.status(404).json({
+          status: "RS_ERROR",
+          message: "Associated account not found",
+        });
+      }
+
+      if (loggedInUser.role === 'agent' && 
+          account.agentHolderId.toString() !== loggedInUser.id.toString()) {
+        return res.status(403).json({
+          status: "RS_ERROR",
+          message: "Unauthorized to access this account alert",
+        });
+      }
+
+      accountAlerts = await AccountAlert.findOne({ AccountLoginId: accountLoginId });
+      
+      if (!accountAlerts) {
+        return res.status(404).json({
+          status: "RS_ERROR",
+          message: "Account alert not found",
+        });
+      }
+    } 
+    else {
+      if (loggedInUser.role === 'admin') {
+        // Admin can see all alerts
+        accountAlerts = await AccountAlert.find();
+      } else if (loggedInUser.role === 'agent') {
+        // Get all accounts belonging to the agent
+        console.log("kya yaha aaya");
+        const agentAccounts = await Account.find({ agentHolderId: loggedInUser.id });
+        const accountLoginIds = agentAccounts.map(account => account.AccountLoginId);
+        console.log("yeh hai loginIds",accountLoginIds);
+        
+        // Get alerts for all accounts belonging to the agent
+        accountAlerts = await AccountAlert.find({
+          AccountLoginId: { $in: accountLoginIds }
+        });
+      } else {
+        return res.status(403).json({
+          status: "RS_ERROR",
+          message: "Unauthorized access",
+        });
+      }
+    }
+
+    res.json({
+      status: "RS_OK",
+      data: accountAlerts,
+    });
+
+  } catch (error) {
+    console.error('Error in getAccountAlert:', error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
+
+exports.getTradeAccountInfo = async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+    const { accountLoginId } = req.body;
+    let tradeAccountInfo;
+
+    // If accountLoginId is provided, fetch specific trade account info
+    if (accountLoginId) {
+      const account = await Account.findOne({ AccountLoginId: accountLoginId });
+      
+      if (!account) {
+        return res.status(404).json({
+          status: "RS_ERROR",
+          message: "Associated account not found",
+        });
+      }
+
+      // Check permissions for specific account
+      if (loggedInUser.role === 'agent' && 
+          account.agentHolderId.toString() !== loggedInUser.id.toString()) {
+        return res.status(403).json({
+          status: "RS_ERROR",
+          message: "Unauthorized to access this trade account info",
+        });
+      }
+
+      tradeAccountInfo = await TradeAccountInfo.findOne({ AccountLoginId: accountLoginId });
+      
+      if (!tradeAccountInfo) {
+        return res.status(404).json({
+          status: "RS_ERROR",
+          message: "Trade account info not found",
+        });
+      }
+    } 
+    // If no accountLoginId provided, fetch all trade account info based on role
+    else {
+      if (loggedInUser.role === 'admin') {
+        // Admin can see all trade account info
+        tradeAccountInfo = await TradeAccountInfo.find();
+      } else if (loggedInUser.role === 'agent') {
+        // Get all accounts belonging to the agent
+        const agentAccounts = await Account.find({ agentHolderId: loggedInUser.id });
+        const accountLoginIds = agentAccounts.map(account => account.AccountLoginId);
+        
+        // Get trade account info for all accounts belonging to the agent
+        tradeAccountInfo = await TradeAccountInfo.find({
+          AccountLoginId: { $in: accountLoginIds }
+        });
+      } else {
+        return res.status(403).json({
+          status: "RS_ERROR",
+          message: "Unauthorized access",
+        });
+      }
+    }
+
+    res.json({
+      status: "RS_OK",
+      data: tradeAccountInfo,
+    });
+
+  } catch (error) {
+    console.error('Error in getTradeAccountInfo:', error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
+
+exports.updateAccountAlert = async (req, res) => {
+  try {
+    const { id } = req.params;  
+
+    if (!id) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Alert ID is required",
+      });
+    }
+
+    if (req.user.role !== 'agent') {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: "Only agents can update account alerts",
+      });
+    }
+
+    const accountAlert = await AccountAlert.findById(id);
+
+    if (!accountAlert) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "Account alert not found",
+      });
+    }
+
+    // Find the associated account using AccountLoginId from the alert
+    const account = await Account.findOne({ AccountLoginId: accountAlert.AccountLoginId });
+    
+    if (!account) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "Associated account not found",
+      });
+    }
+
+    // Verify the agent owns this account
+    if (account.agentHolderId.toString() !== req.user.id.toString()) {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: "Unauthorized to update this account's alert",
+      });
+    }
+
+    // Check if the alert flag is true
+    if (!accountAlert.alertFlag) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Alert flag is already false",
+      });
+    }
+
+    // Update the alert flag to false, lastChecked to current time, and alertOff to current time
+    const currentTime = new Date();
+    const updatedAlert = await AccountAlert.findByIdAndUpdate(
+      id,
+      { 
+        alertFlag: false,
+        lastChecked: currentTime,
+        alertOff: currentTime
+      },
+      { new: true }
+    );
+
+    res.json({
+      status: "RS_OK",
+      data: updatedAlert,
+      message: "Account alert updated successfully",
+    });
+
+  } catch (error) {
+    console.error('Error in updateAccountAlert:', error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
