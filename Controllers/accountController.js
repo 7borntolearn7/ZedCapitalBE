@@ -128,14 +128,10 @@ exports.createAccount = async (req, res) => {
       });
     }
 
-    // Hash the AccountPassword for security
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(AccountPassword, saltRounds);
-
     // Create the new account with all fields
     const newAccount = new Account({
       AccountLoginId,
-      AccountPassword: hashedPassword,
+      AccountPassword, // Store password as-is without hashing
       ServerName,
       EquityType: hasLowerLimit ? EquityType : undefined,
       EquityThreshhold: hasLowerLimit ? EquityThreshhold : undefined,
@@ -155,12 +151,9 @@ exports.createAccount = async (req, res) => {
     // Save the new account to the database
     const savedAccount = await newAccount.save();
 
-    // Remove the password from the response
-    const { AccountPassword: _ignored, ...accountResponse } = savedAccount.toObject();
-
     res.status(201).json({
       status: "RS_OK",
-      data: accountResponse,
+      data: savedAccount,
       message: "Account Created Successfully",
     });
 
@@ -389,21 +382,16 @@ exports.updateAccountPassword = async (req, res) => {
       });
     }
 
-    // Verify old password
-    const isMatch = await bcrypt.compare(oldPassword, account.AccountPassword);
-    if (!isMatch) {
+    // Verify old password (direct comparison since passwords aren't hashed)
+    if (oldPassword !== account.AccountPassword) {
       return res.status(400).json({
         status: "RS_ERROR",
         message: "Old password is incorrect",
       });
     }
 
-    // Hash the new password
-    const saltRounds = 10;
-    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
-
-    // Update the account's password
-    account.AccountPassword = hashedNewPassword;
+    // Update the account's password with the new password directly
+    account.AccountPassword = newPassword;
     await account.save();
 
     res.json({
