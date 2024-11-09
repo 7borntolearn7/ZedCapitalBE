@@ -229,6 +229,60 @@ exports.updateAccount = async (req, res) => {
           message: "Equity type and threshold must be provided together for either lower or upper limits",
         });
       }
+
+      // Validate percentage thresholds
+      // Check lower limit threshold if being updated or if type is being changed to percentage
+      if (EquityThreshhold !== undefined || (EquityType === 'percentage' && accountToUpdate.EquityType !== 'percentage')) {
+        const thresholdToCheck = EquityThreshhold !== undefined ? 
+          EquityThreshhold : accountToUpdate.EquityThreshhold;
+        
+        if (finalEquityType === 'percentage') {
+          if (thresholdToCheck < 0 || thresholdToCheck > 100) {
+            return res.status(400).json({
+              status: "RS_ERROR",
+              message: "Equity threshold must be between 0 and 100 when type is percentage",
+            });
+          }
+        }
+      }
+
+      // Check upper limit threshold if being updated or if type is being changed to percentage
+      if (UpperLimitEquityThreshhold !== undefined || 
+          (UpperLimitEquityType === 'percentage' && accountToUpdate.UpperLimitEquityType !== 'percentage')) {
+        const upperThresholdToCheck = UpperLimitEquityThreshhold !== undefined ? 
+          UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
+        
+        if (finalUpperLimitEquityType === 'percentage') {
+          if (upperThresholdToCheck < 0 || upperThresholdToCheck > 100) {
+            return res.status(400).json({
+              status: "RS_ERROR",
+              message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
+            });
+          }
+        }
+      }
+
+      // Validate existing thresholds when only updating the type to percentage
+      if (EquityType === 'percentage' && EquityThreshhold === undefined && 
+          accountToUpdate.EquityThreshhold !== undefined) {
+        if (accountToUpdate.EquityThreshhold < 0 || accountToUpdate.EquityThreshhold > 100) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Existing equity threshold must be between 0 and 100 when changing type to percentage",
+          });
+        }
+      }
+
+      if (UpperLimitEquityType === 'percentage' && UpperLimitEquityThreshhold === undefined && 
+          accountToUpdate.UpperLimitEquityThreshhold !== undefined) {
+        if (accountToUpdate.UpperLimitEquityThreshhold < 0 || 
+            accountToUpdate.UpperLimitEquityThreshhold > 100) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Existing upper limit equity threshold must be between 0 and 100 when changing type to percentage",
+          });
+        }
+      }
     }
 
     // Handle agent update
