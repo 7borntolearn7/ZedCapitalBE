@@ -196,92 +196,50 @@ exports.updateAccount = async (req, res) => {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    // Validate equity threshold combinations if any equity-related fields are being updated
-    if (EquityType || EquityThreshhold !== undefined || 
-        UpperLimitEquityType || UpperLimitEquityThreshhold !== undefined) {
-      
-      // Get the final state of all equity-related fields
-      const finalEquityType = EquityType || accountToUpdate.EquityType;
-      const finalEquityThreshhold = EquityThreshhold !== undefined ? 
-        EquityThreshhold : accountToUpdate.EquityThreshhold;
-      const finalUpperLimitEquityType = UpperLimitEquityType || 
-        accountToUpdate.UpperLimitEquityType;
-      const finalUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined ? 
-        UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
+    // Get final values for all equity-related fields
+    const finalEquityType = EquityType || accountToUpdate.EquityType;
+    const finalEquityThreshhold = EquityThreshhold !== undefined ? EquityThreshhold : accountToUpdate.EquityThreshhold;
+    const finalUpperLimitEquityType = UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
+    const finalUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined ? UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
 
-      const hasLowerLimit = finalEquityType && finalEquityThreshhold !== undefined;
-      const hasUpperLimit = finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
-      const hasIncompleteLimit = (finalEquityType && finalEquityThreshhold === undefined) || 
-                                (!finalEquityType && finalEquityThreshhold !== undefined) ||
-                                (finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
-                                (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined);
+    // Validate threshold combinations for lower and upper limits
+    const hasLowerLimit = finalEquityType && finalEquityThreshhold !== undefined;
+    const hasUpperLimit = finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
+    const hasIncompleteLimit = (finalEquityType && finalEquityThreshhold === undefined) || 
+                               (!finalEquityType && finalEquityThreshhold !== undefined) ||
+                               (finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
+                               (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined);
 
-      if (!hasLowerLimit && !hasUpperLimit) {
+    if (!hasLowerLimit && !hasUpperLimit) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "At least one complete limit combination must remain after update",
+      });
+    }
+
+    if (hasIncompleteLimit) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Equity type and threshold must be provided together for either lower or upper limits",
+      });
+    }
+
+    // Validate threshold percentages
+    if (finalEquityType === 'percentage' && finalEquityThreshhold !== undefined) {
+      if (finalEquityThreshhold < 0 || finalEquityThreshhold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "At least one complete limit combination must remain after update",
+          message: "Equity threshold must be between 0 and 100 when type is percentage",
         });
       }
+    }
 
-      if (hasIncompleteLimit) {
+    if (finalUpperLimitEquityType === 'percentage' && finalUpperLimitEquityThreshhold !== undefined) {
+      if (finalUpperLimitEquityThreshhold < 0 || finalUpperLimitEquityThreshhold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Equity type and threshold must be provided together for either lower or upper limits",
+          message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
         });
-      }
-
-      // Validate percentage thresholds
-      // Check lower limit threshold if being updated or if type is being changed to percentage
-      if (EquityThreshhold !== undefined || (EquityType === 'percentage' && accountToUpdate.EquityType !== 'percentage')) {
-        const thresholdToCheck = EquityThreshhold !== undefined ? 
-          EquityThreshhold : accountToUpdate.EquityThreshhold;
-        
-        if (finalEquityType === 'percentage') {
-          if (thresholdToCheck < 0 || thresholdToCheck > 100) {
-            return res.status(400).json({
-              status: "RS_ERROR",
-              message: "Equity threshold must be between 0 and 100 when type is percentage",
-            });
-          }
-        }
-      }
-
-      // Check upper limit threshold if being updated or if type is being changed to percentage
-      if (UpperLimitEquityThreshhold !== undefined || 
-          (UpperLimitEquityType === 'percentage' && accountToUpdate.UpperLimitEquityType !== 'percentage')) {
-        const upperThresholdToCheck = UpperLimitEquityThreshhold !== undefined ? 
-          UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
-        
-        if (finalUpperLimitEquityType === 'percentage') {
-          if (upperThresholdToCheck < 0 || upperThresholdToCheck > 100) {
-            return res.status(400).json({
-              status: "RS_ERROR",
-              message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
-            });
-          }
-        }
-      }
-
-      // Validate existing thresholds when only updating the type to percentage
-      if (EquityType === 'percentage' && EquityThreshhold === undefined && 
-          accountToUpdate.EquityThreshhold !== undefined) {
-        if (accountToUpdate.EquityThreshhold < 0 || accountToUpdate.EquityThreshhold > 100) {
-          return res.status(400).json({
-            status: "RS_ERROR",
-            message: "Existing equity threshold must be between 0 and 100 when changing type to percentage",
-          });
-        }
-      }
-
-      if (UpperLimitEquityType === 'percentage' && UpperLimitEquityThreshhold === undefined && 
-          accountToUpdate.UpperLimitEquityThreshhold !== undefined) {
-        if (accountToUpdate.UpperLimitEquityThreshhold < 0 || 
-            accountToUpdate.UpperLimitEquityThreshhold > 100) {
-          return res.status(400).json({
-            status: "RS_ERROR",
-            message: "Existing upper limit equity threshold must be between 0 and 100 when changing type to percentage",
-          });
-        }
       }
     }
 
@@ -333,23 +291,19 @@ exports.updateAccount = async (req, res) => {
 
     // Handle boolean fields
     if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
-      updateFields.messageCheck = typeof messageCheck === "boolean" ? 
-        messageCheck : messageCheck.toLowerCase() === 'true';
+      updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
     }
 
     if (typeof emailCheck === "boolean" || typeof emailCheck === "string") {
-      updateFields.emailCheck = typeof emailCheck === "boolean" ? 
-        emailCheck : emailCheck.toLowerCase() === 'true';
+      updateFields.emailCheck = typeof emailCheck === "boolean" ? emailCheck : emailCheck.toLowerCase() === 'true';
     }
 
     if (typeof UpperLimitMessageCheck === "boolean" || typeof UpperLimitMessageCheck === "string") {
-      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? 
-        UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
+      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
     }
 
     if (typeof UpperLimitEmailCheck === "boolean" || typeof UpperLimitEmailCheck === "string") {
-      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? 
-        UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
+      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
     }
 
     // Handle active status update
@@ -386,6 +340,7 @@ exports.updateAccount = async (req, res) => {
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
+
 
 exports.updateAccountPassword = async (req, res) => {
   try {
