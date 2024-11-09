@@ -189,20 +189,46 @@ exports.updateAccount = async (req, res) => {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    // Get final values for all equity-related fields
-    const finalEquityType = EquityType || accountToUpdate.EquityType;
-    const finalEquityThreshhold = EquityThreshhold !== undefined ? EquityThreshhold : accountToUpdate.EquityThreshhold;
-    const finalUpperLimitEquityType = UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
-    const finalUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined ? UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
+    // Determine whether to consider lower limits
+    const shouldConsiderLowerLimits = 
+      accountToUpdate.EquityType !== null || 
+      accountToUpdate.EquityThreshhold !== null ||
+      EquityType !== undefined ||
+      EquityThreshhold !== undefined;
 
-    // Validate threshold combinations for lower and upper limits
-    const hasLowerLimit = finalEquityType && finalEquityThreshhold !== undefined;
-    const hasUpperLimit = finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
-    const hasIncompleteLimit = (finalEquityType && finalEquityThreshhold === undefined) || 
-                               (!finalEquityType && finalEquityThreshhold !== undefined) ||
-                               (finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
-                               (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined);
+    // Determine whether to consider upper limits
+    const shouldConsiderUpperLimits = 
+      accountToUpdate.UpperLimitEquityType !== null || 
+      accountToUpdate.UpperLimitEquityThreshhold !== null ||
+      UpperLimitEquityType !== undefined ||
+      UpperLimitEquityThreshhold !== undefined;
 
+    // Get final values for lower limits
+    const finalEquityType = shouldConsiderLowerLimits ? 
+      (EquityType || accountToUpdate.EquityType) : null;
+    const finalEquityThreshhold = shouldConsiderLowerLimits ?
+      (EquityThreshhold !== undefined ? EquityThreshhold : accountToUpdate.EquityThreshhold) : null;
+
+    // Get final values for upper limits
+    const finalUpperLimitEquityType = shouldConsiderUpperLimits ? 
+      (UpperLimitEquityType || accountToUpdate.UpperLimitEquityType) : null;
+    const finalUpperLimitEquityThreshhold = shouldConsiderUpperLimits ?
+      (UpperLimitEquityThreshhold !== undefined ? UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold) : null;
+
+    // Validate combinations for both limits
+    const hasLowerLimit = shouldConsiderLowerLimits && finalEquityType && finalEquityThreshhold !== undefined;
+    const hasUpperLimit = shouldConsiderUpperLimits && finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
+    
+    // Check for incomplete combinations
+    const hasIncompleteLowerLimit = shouldConsiderLowerLimits && 
+      ((finalEquityType && finalEquityThreshhold === undefined) || 
+       (!finalEquityType && finalEquityThreshhold !== undefined));
+                                  
+    const hasIncompleteUpperLimit = shouldConsiderUpperLimits && 
+      ((finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
+       (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined));
+
+    // Ensure at least one complete limit exists
     if (!hasLowerLimit && !hasUpperLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
@@ -210,16 +236,18 @@ exports.updateAccount = async (req, res) => {
       });
     }
 
-    if (hasIncompleteLimit) {
+    // Check for incomplete combinations
+    if (hasIncompleteLowerLimit || hasIncompleteUpperLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
         message: "Equity type and threshold must be provided together for either lower or upper limits",
       });
     }
 
-    // Validate threshold percentages
-    if (finalEquityType === 'percentage' && finalEquityThreshhold !== undefined) {
-      if (finalEquityThreshhold < 0 || finalEquityThreshhold > 100) {
+    // Validate percentage ranges for lower limit
+    if (shouldConsiderLowerLimits && finalEquityType === 'percentage' && finalEquityThreshhold !== undefined) {
+      const threshold = parseFloat(finalEquityThreshhold);
+      if (isNaN(threshold) || threshold < 0 || threshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
           message: "Equity threshold must be between 0 and 100 when type is percentage",
@@ -227,8 +255,10 @@ exports.updateAccount = async (req, res) => {
       }
     }
 
-    if (finalUpperLimitEquityType === 'percentage' && finalUpperLimitEquityThreshhold !== undefined) {
-      if (finalUpperLimitEquityThreshhold < 0 || finalUpperLimitEquityThreshhold > 100) {
+    // Validate percentage ranges for upper limit
+    if (shouldConsiderUpperLimits && finalUpperLimitEquityType === 'percentage' && finalUpperLimitEquityThreshhold !== undefined) {
+      const threshold = parseFloat(finalUpperLimitEquityThreshhold);
+      if (isNaN(threshold) || threshold < 0 || threshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
           message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
@@ -277,10 +307,18 @@ exports.updateAccount = async (req, res) => {
     // Update fields if provided
     if (AccountLoginId) updateFields.AccountLoginId = AccountLoginId;
     if (ServerName) updateFields.ServerName = ServerName;
-    if (EquityType) updateFields.EquityType = EquityType;
-    if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
-    if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
-    if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
+
+    // Update lower limit fields only if they should be considered
+    if (shouldConsiderLowerLimits) {
+      if (EquityType) updateFields.EquityType = EquityType;
+      if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
+    }
+    
+    // Update upper limit fields only if they should be considered
+    if (shouldConsiderUpperLimits) {
+      if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
+      if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
+    }
 
     // Handle boolean fields
     if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
