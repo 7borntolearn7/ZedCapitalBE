@@ -57,6 +57,28 @@ exports.createAccount = async (req, res) => {
       });
     }
 
+    // Validate percentage ranges for lower limit
+    if (hasLowerLimit && EquityType === 'percentage') {
+      const lowerThreshold = parseFloat(EquityThreshhold);
+      if (isNaN(lowerThreshold) || lowerThreshold < 0 || lowerThreshold > 100) {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "Lower limit equity threshold must be between 0 and 100 when type is percentage",
+        });
+      }
+    }
+
+    // Validate percentage ranges for upper limit
+    if (hasUpperLimit && UpperLimitEquityType === 'percentage') {
+      const upperThreshold = parseFloat(UpperLimitEquityThreshhold);
+      if (isNaN(upperThreshold) || upperThreshold < 0 || upperThreshold > 100) {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
+        });
+      }
+    }
+
     // Check if an account with the same AccountLoginId already exists
     const existingAccount = await Account.findOne({ AccountLoginId });
     if (existingAccount) {
