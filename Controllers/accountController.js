@@ -17,17 +17,43 @@ exports.createAccount = async (req, res) => {
       ServerName,
       EquityType,
       EquityThreshhold,
+      UpperLimitEquityType,
+      UpperLimitEquityThreshhold,
       messageCheck,
       emailCheck,
+      UpperLimitMessageCheck,
+      UpperLimitEmailCheck,
       agentId,
       active,
     } = req.body;
 
-    // Ensure all required fields are present
-    if (!AccountLoginId || !AccountPassword || !ServerName || !EquityType || !EquityThreshhold) {
+    // Ensure all required base fields are present
+    if (!AccountLoginId || !AccountPassword || !ServerName) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "All fields are required",
+        message: "Account login, password and server name are required",
+      });
+    }
+
+    // Validate equity threshold combinations
+    const hasLowerLimit = EquityType && EquityThreshhold !== undefined;
+    const hasUpperLimit = UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined;
+    const hasIncompleteLimit = (EquityType && !EquityThreshhold) || 
+                              (!EquityType && EquityThreshhold !== undefined) ||
+                              (UpperLimitEquityType && !UpperLimitEquityThreshhold) || 
+                              (!UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined);
+
+    if (!hasLowerLimit && !hasUpperLimit) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "At least one complete limit combination (EquityType + EquityThreshhold) or (UpperLimitEquityType + UpperLimitEquityThreshhold) is required",
+      });
+    }
+
+    if (hasIncompleteLimit) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Equity type and threshold must be provided together for either lower or upper limits",
       });
     }
 
@@ -69,7 +95,6 @@ exports.createAccount = async (req, res) => {
       accountHolder = agentId;
       agentHolderName = `${agent.firstName} ${agent.lastName}`;
     } 
-    // If the user is an agent, they are the account holder
     else if (req.user.role === 'agent') {
       accountHolder = req.user.id;
       agentHolderName = `${req.user.firstName} ${req.user.lastName}`;
@@ -85,31 +110,35 @@ exports.createAccount = async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(AccountPassword, saltRounds);
 
-    // Create the new account
+    // Create the new account with all fields
     const newAccount = new Account({
       AccountLoginId,
-      AccountPassword: hashedPassword, // Save the hashed password
+      AccountPassword: hashedPassword,
       ServerName,
-      EquityType,
-      EquityThreshhold,
-      messageCheck,
-      emailCheck,
+      EquityType: hasLowerLimit ? EquityType : undefined,
+      EquityThreshhold: hasLowerLimit ? EquityThreshhold : undefined,
+      UpperLimitEquityType: hasUpperLimit ? UpperLimitEquityType : undefined,
+      UpperLimitEquityThreshhold: hasUpperLimit ? UpperLimitEquityThreshhold : undefined,
+      messageCheck: messageCheck !== undefined ? messageCheck : true,
+      emailCheck: emailCheck !== undefined ? emailCheck : true,
+      UpperLimitMessageCheck: UpperLimitMessageCheck !== undefined ? UpperLimitMessageCheck : true,
+      UpperLimitEmailCheck: UpperLimitEmailCheck !== undefined ? UpperLimitEmailCheck : true,
       createdBy: req.user.firstName,
       updatedBy: req.user.firstName,
       agentHolderId: accountHolder,
       agentHolderName: agentHolderName,
-      active: active !== undefined ? active : true, // Set active to true by default
+      active: active !== undefined ? active : true,
     });
 
     // Save the new account to the database
     const savedAccount = await newAccount.save();
 
     // Remove the password from the response
-    const { AccountPassword: _ignored, ...accountResponse } = savedAccount.toObject(); 
+    const { AccountPassword: _ignored, ...accountResponse } = savedAccount.toObject();
 
     res.status(201).json({
       status: "RS_OK",
-      data: accountResponse, // Send the account without the password
+      data: accountResponse,
       message: "Account Created Successfully",
     });
 
@@ -119,7 +148,6 @@ exports.createAccount = async (req, res) => {
   }
 };
 
- 
 exports.updateAccount = async (req, res) => {
   try {
     const { id } = req.params;
@@ -129,11 +157,15 @@ exports.updateAccount = async (req, res) => {
       ServerName,
       EquityType,
       EquityThreshhold,
+      UpperLimitEquityType,
+      UpperLimitEquityThreshhold,
       messageCheck,
       emailCheck,
+      UpperLimitMessageCheck,
+      UpperLimitEmailCheck,
       agentId,
       active,
-      userPassword 
+      userPassword
     } = req.body;
 
     const accountToUpdate = await Account.findById(id);
@@ -142,7 +174,42 @@ exports.updateAccount = async (req, res) => {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    // Check if agentId is provided in the request body
+    // Validate equity threshold combinations if any equity-related fields are being updated
+    if (EquityType || EquityThreshhold !== undefined || 
+        UpperLimitEquityType || UpperLimitEquityThreshhold !== undefined) {
+      
+      // Get the final state of all equity-related fields
+      const finalEquityType = EquityType || accountToUpdate.EquityType;
+      const finalEquityThreshhold = EquityThreshhold !== undefined ? 
+        EquityThreshhold : accountToUpdate.EquityThreshhold;
+      const finalUpperLimitEquityType = UpperLimitEquityType || 
+        accountToUpdate.UpperLimitEquityType;
+      const finalUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined ? 
+        UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold;
+
+      const hasLowerLimit = finalEquityType && finalEquityThreshhold !== undefined;
+      const hasUpperLimit = finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
+      const hasIncompleteLimit = (finalEquityType && finalEquityThreshhold === undefined) || 
+                                (!finalEquityType && finalEquityThreshhold !== undefined) ||
+                                (finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
+                                (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined);
+
+      if (!hasLowerLimit && !hasUpperLimit) {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "At least one complete limit combination must remain after update",
+        });
+      }
+
+      if (hasIncompleteLimit) {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "Equity type and threshold must be provided together for either lower or upper limits",
+        });
+      }
+    }
+
+    // Handle agent update
     if (agentId) {
       const agent = await User.findById(agentId);
       if (!agent || agent.role !== 'agent') {
@@ -163,20 +230,10 @@ exports.updateAccount = async (req, res) => {
       updateFields.agentHolderName = `${agent.firstName} ${agent.lastName}`;
     }
 
-    if (!accountToUpdate.active) {
-      if (!accountToUpdate.agentHolderId) {
-        return res.status(400).json({
-          status: "RS_ERROR",
-          message: "Inactive account cannot be updated as it has no agent holder"
-        });
-      }
-    }
-
     // Role-based authorization checks
     if (req.user.role === 'admin') {
-      // Admin can update any account (agentId check handled above)
+      // Admin can update any account
     } else if (req.user.role === 'agent') {
-      // Ensure agents can only update their own accounts
       if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
         return res.status(401).json({
           status: "RS_ERROR",
@@ -190,49 +247,57 @@ exports.updateAccount = async (req, res) => {
       });
     }
 
-    // Handle other field updates
+    // Update fields if provided
     if (AccountLoginId) updateFields.AccountLoginId = AccountLoginId;
     if (ServerName) updateFields.ServerName = ServerName;
     if (EquityType) updateFields.EquityType = EquityType;
-    if (EquityThreshhold) updateFields.EquityThreshhold = EquityThreshhold;
+    if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
+    if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
+    if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
 
-    if (typeof messageCheck === "boolean") {
-      updateFields.messageCheck = messageCheck;
-    } else if (typeof messageCheck === "string") {
-      updateFields.messageCheck = messageCheck.toLowerCase() === 'true';
+    // Handle boolean fields
+    if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
+      updateFields.messageCheck = typeof messageCheck === "boolean" ? 
+        messageCheck : messageCheck.toLowerCase() === 'true';
     }
 
-    if (typeof emailCheck === "boolean") {
-      updateFields.emailCheck = emailCheck;
-    } else if (typeof emailCheck === "string") {
-      updateFields.emailCheck = emailCheck.toLowerCase() === 'true';
+    if (typeof emailCheck === "boolean" || typeof emailCheck === "string") {
+      updateFields.emailCheck = typeof emailCheck === "boolean" ? 
+        emailCheck : emailCheck.toLowerCase() === 'true';
     }
 
-    // Check if active status is being updated
+    if (typeof UpperLimitMessageCheck === "boolean" || typeof UpperLimitMessageCheck === "string") {
+      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? 
+        UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
+    }
+
+    if (typeof UpperLimitEmailCheck === "boolean" || typeof UpperLimitEmailCheck === "string") {
+      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? 
+        UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
+    }
+
+    // Handle active status update
     if (typeof active === "boolean" || typeof active === "string") {
       const isActiveBoolean = typeof active === 'boolean' ? active : active.toLowerCase() === 'true';
 
-      // Ensure userPassword is provided when updating active status
       if (!userPassword) {
         return res.status(400).json({ status: "RS_ERROR", message: "User password required" });
       }
 
-      // Fetch the logged-in user (req.user should contain the logged-in user's details)
       const loggedInUser = await User.findById(req.user.id);
-
-      // Check if the provided userPassword matches the logged-in user's stored hashed password
       const isPasswordValid = await bcrypt.compare(userPassword, loggedInUser.password);
+      
       if (!isPasswordValid) {
         return res.status(400).json({ status: "RS_ERROR", message: "Incorrect user password" });
       }
 
-      // If the password is valid, proceed with the status update
       updateFields.active = isActiveBoolean;
     }
 
     if (req.user) updateFields.updatedBy = req.user.firstName;
+    updateFields.updatedOn = Date.now();
 
-    // Update the account with the provided fields
+    // Update the account
     const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
 
     if (!updatedAccount) {
@@ -346,8 +411,12 @@ exports.getAccounts = async (req, res) => {
       ServerName: account.ServerName,
       EquityType: account.EquityType,
       EquityThreshhold: account.EquityThreshhold,
+      UpperLimitEquityType:account.UpperLimitEquityType,
+      UpperLimitEquityThreshhold:account.UpperLimitEquityThreshhold,
       messageCheck: account.messageCheck,
       emailCheck: account.emailCheck,
+      UpperLimitMessageCheck:account.UpperLimitMessageCheck,
+      UpperLimitEmailCheck:account.UpperLimitEmailCheck,
       agentHolderId: account.agentHolderId,
       agentHolderName: account.agentHolderName,
       active: account.active,

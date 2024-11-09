@@ -18,24 +18,38 @@ const AccountSchema = new Schema({
   EquityType: {
     type: String,
     enum: ["fixed", "percentage"],
-    required: true,
+    default: null
   },
   EquityThreshhold: {
     type: Number,
-    default: 0,
-    required: true,
+    default: null,
+  },
+  UpperLimitEquityType:{
+    type: String,
+    enum: ["fixed","percentage"],
+    default: null
+  },
+  UpperLimitEquityThreshhold:{
+    type: Number,
+    default: null,
   },
   messageCheck: {
     type: Boolean,
-    required: true,
-    default: false,
+    default: true,
   },
   emailCheck: {
     type: Boolean,
-    required: true,
-    default: false,
+    default: true,
   },
-  
+  UpperLimitMessageCheck:{
+    type: Boolean,
+    default: true,
+  },
+  UpperLimitEmailCheck:{
+    type: Boolean,
+    default: true,
+  }
+,
   agentHolderId: {
     type: Schema.Types.ObjectId,
     ref: "User", 
