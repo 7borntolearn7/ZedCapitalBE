@@ -318,6 +318,13 @@ exports.mobilelogin = async (req, res) => {
         message: "Invalid Email or Password",
       });
     }
+    
+    if (user.role === "admin") {
+      return res.status(401).json({
+        status: "RS_ERROR",
+        message: "Admins are not authorized to log in using this API.",
+      });
+    }
 
     if (user.role === "agent" && !user.active) {
       return res.status(403).json({
@@ -342,7 +349,7 @@ exports.mobilelogin = async (req, res) => {
       email: user.email,
       id: user._id,
       role: user.role,
-      fcmtokens:user.fcmtokens,
+      fcmtokens: user.fcmtokens,
       random: Math.random().toString(36).substr(2),
     };
 
@@ -384,6 +391,7 @@ exports.mobilelogin = async (req, res) => {
     });
   }
 };
+
 
 exports.mobilelogout = async (req, res) => {
   try {
