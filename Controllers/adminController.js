@@ -342,6 +342,7 @@ exports.mobilelogin = async (req, res) => {
       email: user.email,
       id: user._id,
       role: user.role,
+      fcmtokens:user.fcmtokens,
       random: Math.random().toString(36).substr(2),
     };
 
