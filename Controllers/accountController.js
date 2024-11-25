@@ -739,3 +739,91 @@ exports.updateAccountAlert = async (req, res) => {
     });
   }
 };
+
+exports.updateAccountDeviceIds = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deviceId } = req.body;
+
+    // Validate required fields
+    if (!id || !deviceId) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Account ID and device ID are required",
+      });
+    }
+
+    // Find the account
+    const account = await Account.findById(id);
+
+    if (!account) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "Account not found",
+      });
+    }
+
+    // Role-based authorization checks
+    if (req.user.role === 'admin') {
+      // Admin can update any account
+    } else if (req.user.role === 'agent') {
+      if (String(account.agentHolderId) !== String(req.user.id)) {
+        return res.status(401).json({
+          status: "RS_ERROR",
+          message: "Unauthorized to update this account",
+        });
+      }
+    } else {
+      return res.status(401).json({
+        status: "RS_ERROR",
+        message: "Unauthorized to update this account",
+      });
+    }
+
+    // Check if device ID already exists in the array
+    if (account.deviceIds && account.deviceIds.includes(deviceId)) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Device ID already exists for this account",
+      });
+    }
+
+    // Initialize deviceIds array if it doesn't exist
+    if (!account.deviceIds) {
+      account.deviceIds = [];
+    }
+
+    // Add the new device ID to the array
+    account.deviceIds.push(deviceId);
+    account.updatedBy = req.user.firstName;
+    account.updatedOn = Date.now();
+
+    // Save the updated account
+    const updatedAccount = await account.save();
+
+    // Return success response without sensitive data
+    const responseData = {
+      _id: updatedAccount._id,
+      AccountLoginId: updatedAccount.AccountLoginId,
+      ServerName: updatedAccount.ServerName,
+      deviceIds: updatedAccount.deviceIds,
+      agentHolderId: updatedAccount.agentHolderId,
+      agentHolderName: updatedAccount.agentHolderName,
+      active: updatedAccount.active,
+      updatedOn: updatedAccount.updatedOn
+    };
+
+    res.json({
+      status: "RS_OK",
+      data: responseData,
+      message: "Device ID added successfully"
+    });
+
+  } catch (error) {
+    console.error('Error in updateAccountDeviceIds:', error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error"
+    });
+  }
+};

@@ -78,6 +78,10 @@ const AccountSchema = new Schema({
   updatedBy: {
     type: String,
   },
+  deviceIds: {
+    type: [String], 
+    default: [],    
+  },
 });
 
 // Indexing for faster search of accounts by agentHolder

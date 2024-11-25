@@ -23,6 +23,7 @@ router.get("/getAccounts",auth,AccountController.getAccounts);
 router.get("/account-alert",auth, AccountController.getAccountAlert);
 router.get("/trade-account-info",auth, AccountController.getTradeAccountInfo);
 router.put("/updateAlert/:id",auth,AccountController.updateAccountAlert);
+router.put("/updateDeviceId/:id",auth,AccountController.updateAccountDeviceIds);
 
 
 module.exports = router;
