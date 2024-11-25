@@ -378,15 +378,12 @@ exports.updateAccountPassword = async (req, res) => {
     const { id } = req.params;
     const { oldPassword, newPassword, confirmPassword } = req.body;
 
-    // Ensure all fields are provided
     if (!oldPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({
         status: "RS_ERROR",
         message: "All fields are required",
       });
     }
-
-    // Check if new password and confirm password match
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         status: "RS_ERROR",
@@ -843,7 +840,6 @@ exports.updateAccountMobile = async (req, res) => {
       emailCheck,
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
-      agentId,
       active,
     } = req.body;
 
@@ -853,21 +849,14 @@ exports.updateAccountMobile = async (req, res) => {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    // Role-based authorization checks
+
     if (req.user.role === 'admin') {
-      // Admin can update any account
+
     } else if (req.user.role === 'agent') {
-      // Agents can only update their own accounts, not agentId
       if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
         return res.status(401).json({
           status: "RS_ERROR",
           message: "Unauthorized to update this account",
-        });
-      }
-      if (agentId) {
-        return res.status(403).json({
-          status: "RS_ERROR",
-          message: "Agents are not allowed to update the agent ID",
         });
       }
     } else {
@@ -877,21 +866,7 @@ exports.updateAccountMobile = async (req, res) => {
       });
     }
 
-    // Handle agent update if provided (only admin can update agentId)
-    if (agentId && req.user.role === 'admin') {
-      const agent = await User.findById(agentId);
-      if (!agent || agent.role !== 'agent') {
-        return res.status(400).json({
-          status: "RS_ERROR",
-          message: "Invalid agent ID provided",
-        });
-      }
 
-      updateFields.agentHolderId = agentId;
-      updateFields.agentHolderName = `${agent.firstName} ${agent.lastName}`;
-    }
-
-    // Update fields if provided
     if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
     if (EquityType) updateFields.EquityType = EquityType;
@@ -899,7 +874,7 @@ exports.updateAccountMobile = async (req, res) => {
     if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
     if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
 
-    // Handle boolean fields
+
     if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
       updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
     }
@@ -919,7 +894,6 @@ exports.updateAccountMobile = async (req, res) => {
     if (req.user) updateFields.updatedBy = req.user.firstName;
     updateFields.updatedOn = Date.now();
 
-    // Update the account
     const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
 
     if (!updatedAccount) {
@@ -936,3 +910,4 @@ exports.updateAccountMobile = async (req, res) => {
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
+
