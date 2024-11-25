@@ -1,7 +1,9 @@
 const CryptoJS = require("crypto-js");
 const jwt = require("jsonwebtoken");
 const User = require("../Models/User");
+const Account = require("../Models/Account");
 require("dotenv").config({ path: "./.env" });
+
 const bcrypt = require('bcrypt');
 const dayjs = require('dayjs');
 
