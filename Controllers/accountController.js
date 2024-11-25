@@ -857,10 +857,17 @@ exports.updateAccountMobile = async (req, res) => {
     if (req.user.role === 'admin') {
       // Admin can update any account
     } else if (req.user.role === 'agent') {
+      // Agents can only update their own accounts, not agentId
       if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
         return res.status(401).json({
           status: "RS_ERROR",
           message: "Unauthorized to update this account",
+        });
+      }
+      if (agentId) {
+        return res.status(403).json({
+          status: "RS_ERROR",
+          message: "Agents are not allowed to update the agent ID",
         });
       }
     } else {
@@ -870,8 +877,8 @@ exports.updateAccountMobile = async (req, res) => {
       });
     }
 
-    // Handle agent update if provided
-    if (agentId) {
+    // Handle agent update if provided (only admin can update agentId)
+    if (agentId && req.user.role === 'admin') {
       const agent = await User.findById(agentId);
       if (!agent || agent.role !== 'agent') {
         return res.status(400).json({
@@ -884,14 +891,14 @@ exports.updateAccountMobile = async (req, res) => {
       updateFields.agentHolderName = `${agent.firstName} ${agent.lastName}`;
     }
 
-    // Update fields if provided (excluding AccountLoginId)
+    // Update fields if provided
     if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
     if (EquityType) updateFields.EquityType = EquityType;
     if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
     if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
     if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
-    
+
     // Handle boolean fields
     if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
       updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
@@ -919,10 +926,10 @@ exports.updateAccountMobile = async (req, res) => {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    res.json({ 
-      status: "RS_OK", 
+    res.json({
+      status: "RS_OK",
       data: updatedAccount,
-      message: "Account updated successfully"
+      message: "Account updated successfully",
     });
   } catch (error) {
     console.error(error);
