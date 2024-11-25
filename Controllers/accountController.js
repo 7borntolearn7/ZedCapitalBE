@@ -146,7 +146,7 @@ exports.createAccount = async (req, res) => {
       updatedBy: req.user.firstName,
       agentHolderId: accountHolder,
       agentHolderName: agentHolderName,
-      active: active !== undefined ? active : true,
+      active: active !== undefined ? active : false,
       fcmtokens: userFcmTokens,
     });
 
