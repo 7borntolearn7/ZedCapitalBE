@@ -782,8 +782,8 @@ exports.updateAccountDeviceIds = async (req, res) => {
 
     // Check if device ID already exists in the array
     if (account.deviceIds && account.deviceIds.includes(deviceId)) {
-      return res.status(400).json({
-        status: "RS_ERROR",
+      return res.status(200).json({
+        status: "RS_OK",
         message: "Device ID already exists for this account",
       });
     }
@@ -825,5 +825,107 @@ exports.updateAccountDeviceIds = async (req, res) => {
       status: "RS_ERROR",
       message: "Internal Server Error"
     });
+  }
+};
+
+exports.updateAccountMobile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = {};
+    const {
+      AccountPassword,
+      ServerName,
+      EquityType,
+      EquityThreshhold,
+      UpperLimitEquityType,
+      UpperLimitEquityThreshhold,
+      messageCheck,
+      emailCheck,
+      UpperLimitMessageCheck,
+      UpperLimitEmailCheck,
+      agentId,
+      active,
+    } = req.body;
+
+    const accountToUpdate = await Account.findById(id);
+
+    if (!accountToUpdate) {
+      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+    }
+
+    // Role-based authorization checks
+    if (req.user.role === 'admin') {
+      // Admin can update any account
+    } else if (req.user.role === 'agent') {
+      if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
+        return res.status(401).json({
+          status: "RS_ERROR",
+          message: "Unauthorized to update this account",
+        });
+      }
+    } else {
+      return res.status(401).json({
+        status: "RS_ERROR",
+        message: "Unauthorized to update this account",
+      });
+    }
+
+    // Handle agent update if provided
+    if (agentId) {
+      const agent = await User.findById(agentId);
+      if (!agent || agent.role !== 'agent') {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "Invalid agent ID provided",
+        });
+      }
+
+      updateFields.agentHolderId = agentId;
+      updateFields.agentHolderName = `${agent.firstName} ${agent.lastName}`;
+    }
+
+    // Update fields if provided (excluding AccountLoginId)
+    if (AccountPassword) updateFields.AccountPassword = AccountPassword;
+    if (ServerName) updateFields.ServerName = ServerName;
+    if (EquityType) updateFields.EquityType = EquityType;
+    if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
+    if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
+    if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
+    
+    // Handle boolean fields
+    if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
+      updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
+    }
+    if (typeof emailCheck === "boolean" || typeof emailCheck === "string") {
+      updateFields.emailCheck = typeof emailCheck === "boolean" ? emailCheck : emailCheck.toLowerCase() === 'true';
+    }
+    if (typeof UpperLimitMessageCheck === "boolean" || typeof UpperLimitMessageCheck === "string") {
+      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
+    }
+    if (typeof UpperLimitEmailCheck === "boolean" || typeof UpperLimitEmailCheck === "string") {
+      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
+    }
+    if (typeof active === "boolean" || typeof active === "string") {
+      updateFields.active = typeof active === "boolean" ? active : active.toLowerCase() === 'true';
+    }
+
+    if (req.user) updateFields.updatedBy = req.user.firstName;
+    updateFields.updatedOn = Date.now();
+
+    // Update the account
+    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
+
+    if (!updatedAccount) {
+      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+    }
+
+    res.json({ 
+      status: "RS_OK", 
+      data: updatedAccount,
+      message: "Account updated successfully"
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };

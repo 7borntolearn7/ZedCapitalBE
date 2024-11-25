@@ -63,6 +63,7 @@ const AccountSchema = new Schema({
   active:{
     type:Boolean,
     required:true,
+    default:false
   },
   createdOn: {
     type: Date,
