@@ -475,7 +475,8 @@ exports.getAccounts = async (req, res) => {
       agentHolderName: account.agentHolderName,
       active: account.active,
       createdOn: account.createdOn,
-      updatedOn: account.updatedOn
+      updatedOn: account.updatedOn,
+      fcmtokens:account.fcmtokens
     }));
 
     res.json({ status: "RS_OK", data: accountsData });
