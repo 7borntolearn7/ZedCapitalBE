@@ -476,7 +476,6 @@ exports.getAccounts = async (req, res) => {
       active: account.active,
       createdOn: account.createdOn,
       updatedOn: account.updatedOn,
-      fcmtokens:account.fcmtokens
     }));
 
     res.json({ status: "RS_OK", data: accountsData });
