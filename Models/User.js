@@ -50,6 +50,10 @@ const UserSchema = new Schema({
   updatedBy: {
     type: String,
   },
+  fcmtokens: {
+    type: [String], 
+    default: [],    
+  },
 });
 
 const User = mongoose.model("User", UserSchema);

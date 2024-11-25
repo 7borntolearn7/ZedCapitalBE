@@ -10,6 +10,8 @@ router.post("/createAdmin",auth,  adminController.createAdmin);
 router.get("/getCounts",auth,DashBoardController.getCounts);
 router.get("/getAllAdmins",auth,adminController.getAllAdmins);
 router.post("/login",adminController.login);
+router.post("/mobilelogin",adminController.mobilelogin);
+router.post("/mobilelogout",adminController.mobilelogout);
 router.post("/createAgent",auth, agentController.createAgent);
 router.put("/updateAgent/:id", auth, agentController.updateAgent);
 router.put("/updateAgentPassword/:id",auth,agentController.updateAgentPassword);

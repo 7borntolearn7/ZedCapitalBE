@@ -295,5 +295,129 @@ exports.getCounts = async (req, res) => {
 };
 
 
+exports.mobilelogin = async (req, res) => {
+  try {
+    const { email, password, fcmtoken } = req.body;
 
+    if (!email || !password || !fcmtoken) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Email, password, and FCM token are required",
+      });
+    }
+
+    res.clearCookie("token");
+
+    const user = await User.findOne({ email });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Invalid Email or Password",
+      });
+    }
+
+    if (user.role === "agent" && !user.active) {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: "Your account is inactive. Please contact the administrator.",
+      });
+    }
+
+    // Add FCM token if not already present
+    if (!user.fcmtokens.includes(fcmtoken)) {
+      user.fcmtokens.push(fcmtoken);
+
+      // Update all accounts associated with this user to include the new FCM token
+      await Account.updateMany(
+        { agentHolderId: user._id },
+        { $addToSet: { fcmtokens: fcmtoken } }
+      );
+    }
+
+    const payload = {
+      firstName: user.firstName,
+      email: user.email,
+      id: user._id,
+      role: user.role,
+      random: Math.random().toString(36).substr(2),
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "2h",
+    });
+
+    user.jwtTokens = token;
+    await user.save();
+
+    const responseData = {
+      status: "RS_OK",
+      message: "Login successful",
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      id: user._id,
+      role: user.role,
+      active: user.active,
+      token: token,
+    };
+
+    res
+      .set("Authorization", `Bearer ${token}`)
+      .json(responseData);
+  } catch (error) {
+    console.error(error);
+
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({
+        status: "RS_ERROR",
+        message: "Token expired",
+      });
+    }
+
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
+
+exports.mobilelogout = async (req, res) => {
+  try {
+    const { email, fcmtoken } = req.body;
+
+    if (!email || !fcmtoken) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Email and FCM token are required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "User not found",
+      });
+    }
+
+
+    user.fcmtokens = user.fcmtokens.filter((token) => token !== fcmtoken);
+    user.jwtTokens = null;
+    await user.save();
+
+    res.status(200).json({
+      status: "RS_OK",
+      message: "Logout successful",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
+};
 

@@ -79,7 +79,7 @@ const AccountSchema = new Schema({
   updatedBy: {
     type: String,
   },
-  deviceIds: {
+  fcmtokens: {
     type: [String], 
     default: [],    
   },
