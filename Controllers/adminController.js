@@ -318,7 +318,7 @@ exports.mobilelogin = async (req, res) => {
         message: "Invalid Email or Password",
       });
     }
-    
+
     if (user.role === "admin") {
       return res.status(401).json({
         status: "RS_ERROR",
@@ -393,42 +393,48 @@ exports.mobilelogin = async (req, res) => {
 };
 
 
-exports.mobilelogout = async (req, res) => {
-  try {
-    const { email, fcmtoken } = req.body;
-
-    if (!email || !fcmtoken) {
-      return res.status(400).json({
-        status: "RS_ERROR",
-        message: "Email and FCM token are required",
-      });
-    }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        status: "RS_ERROR",
-        message: "User not found",
-      });
-    }
-
-
+exports.mobilelogout = async (req, res) => {   
+  try {     
+    const { email, fcmtoken } = req.body;      
+    
+    if (!email || !fcmtoken) {       
+      return res.status(400).json({         
+        status: "RS_ERROR",         
+        message: "Email and FCM token are required",       
+      });     
+    }      
+    
+    const user = await User.findOne({ email });      
+    
+    if (!user) {       
+      return res.status(404).json({         
+        status: "RS_ERROR",         
+        message: "User not found",       
+      });     
+    }       
+    
+    // Remove FCM token from User collection
     user.fcmtokens = user.fcmtokens.filter((token) => token !== fcmtoken);
     user.jwtTokens = null;
     await user.save();
-
-    res.status(200).json({
-      status: "RS_OK",
-      message: "Logout successful",
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      status: "RS_ERROR",
-      message: "Internal Server Error",
-    });
-  }
+    
+    // Remove FCM token from Account collection(s)
+    await Account.updateMany(
+      { agentHolderId: user._id, fcmtokens: fcmtoken }, 
+      { $pull: { fcmtokens: fcmtoken } }
+    );
+    
+    res.status(200).json({       
+      status: "RS_OK",       
+      message: "Logout successful",     
+    });   
+  } catch (error) {     
+    console.error(error);      
+    
+    res.status(500).json({       
+      status: "RS_ERROR",       
+      message: "Internal Server Error",     
+    });   
+  } 
 };
 
