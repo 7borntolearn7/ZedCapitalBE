@@ -44,9 +44,7 @@ exports.login = async (req, res) => {
       random: Math.random().toString(36).substr(2),
     };
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "2h",
-    });
+    const token = jwt.sign(payload, process.env.JWT_SECRET);
 
     user.jwtTokens = token;
     await user.save();
@@ -333,29 +331,22 @@ exports.mobilelogin = async (req, res) => {
       });
     }
 
-    // Add FCM token if not already present
-    if (!user.fcmtokens.includes(fcmtoken)) {
-      user.fcmtokens.push(fcmtoken);
-
-      // Update all accounts associated with this user to include the new FCM token
-      await Account.updateMany(
-        { agentHolderId: user._id },
-        { $addToSet: { fcmtokens: fcmtoken } }
-      );
-    }
+    await Account.updateMany(
+      { agentHolderId: user._id },
+      { 
+        $addToSet: { fcmtokens: fcmtoken } 
+      }
+    );
 
     const payload = {
       firstName: user.firstName,
       email: user.email,
       id: user._id,
       role: user.role,
-      fcmtokens: user.fcmtokens,
       random: Math.random().toString(36).substr(2),
     };
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "2h",
-    });
+    const token = jwt.sign(payload, process.env.JWT_SECRET);
 
     user.jwtTokens = token;
     await user.save();
@@ -378,13 +369,7 @@ exports.mobilelogin = async (req, res) => {
   } catch (error) {
     console.error(error);
 
-    if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({
-        status: "RS_ERROR",
-        message: "Token expired",
-      });
-    }
-
+    // Remove the specific TokenExpiredError handling since tokens won't expire
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
@@ -393,48 +378,45 @@ exports.mobilelogin = async (req, res) => {
 };
 
 
-exports.mobilelogout = async (req, res) => {   
-  try {     
-    const { email, fcmtoken } = req.body;      
-    
-    if (!email || !fcmtoken) {       
-      return res.status(400).json({         
-        status: "RS_ERROR",         
-        message: "Email and FCM token are required",       
-      });     
-    }      
-    
-    const user = await User.findOne({ email });      
-    
-    if (!user) {       
-      return res.status(404).json({         
-        status: "RS_ERROR",         
-        message: "User not found",       
-      });     
-    }       
-    
-    // Remove FCM token from User collection
-    user.fcmtokens = user.fcmtokens.filter((token) => token !== fcmtoken);
+exports.mobilelogout = async (req, res) => {
+  try {
+    const { email, fcmtoken } = req.body;
+
+    if (!email || !fcmtoken) {
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: "Email and FCM token are required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "User not found",
+      });
+    }
+
     user.jwtTokens = null;
     await user.save();
-    
-    // Remove FCM token from Account collection(s)
+
     await Account.updateMany(
-      { agentHolderId: user._id, fcmtokens: fcmtoken }, 
+      { agentHolderId: user._id, fcmtokens: fcmtoken },
       { $pull: { fcmtokens: fcmtoken } }
     );
-    
-    res.status(200).json({       
-      status: "RS_OK",       
-      message: "Logout successful",     
-    });   
-  } catch (error) {     
-    console.error(error);      
-    
-    res.status(500).json({       
-      status: "RS_ERROR",       
-      message: "Internal Server Error",     
-    });   
-  } 
+
+    res.status(200).json({
+      status: "RS_OK",
+      message: "Logout successful",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
+    });
+  }
 };
 
