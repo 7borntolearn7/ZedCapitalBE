@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+require("mongoose-double")(mongoose);
 const Schema = mongoose.Schema;
+const SchemaTypes = mongoose.Schema.Types;
 
 const AccountSchema = new Schema({
   AccountLoginId: {
@@ -21,7 +23,7 @@ const AccountSchema = new Schema({
     default: null
   },
   EquityThreshhold: {
-    type: Number,
+    type: SchemaTypes.Double,
     default: null,
   },
   UpperLimitEquityType:{
@@ -30,7 +32,7 @@ const AccountSchema = new Schema({
     default: null
   },
   UpperLimitEquityThreshhold:{
-    type: Number,
+    type: SchemaTypes.Double,
     default: null,
   },
   messageCheck: {
