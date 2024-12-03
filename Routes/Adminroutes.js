@@ -24,7 +24,6 @@ router.delete("/deleteAccount/:userId",auth,AccountController.deleteAccount);
 router.get("/getAccounts",auth,AccountController.getAccounts);
 router.get("/account-alert",auth, AccountController.getAccountAlert);
 router.get("/trade-account-info",auth, AccountController.getTradeAccountInfo);
-router.put("/updateAlert/:id",auth,AccountController.updateAccountAlert);
 router.put("/updateAccountMobile/:id",auth,AccountController.updateAccountMobile);
 
 

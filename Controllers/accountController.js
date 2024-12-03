@@ -656,86 +656,6 @@ exports.getTradeAccountInfo = async (req, res) => {
   }
 };
 
-exports.updateAccountAlert = async (req, res) => {
-  try {
-    const { id } = req.params;  
-
-    if (!id) {
-      return res.status(400).json({
-        status: "RS_ERROR",
-        message: "Alert ID is required",
-      });
-    }
-
-    if (req.user.role !== 'agent') {
-      return res.status(403).json({
-        status: "RS_ERROR",
-        message: "Only agents can update account alerts",
-      });
-    }
-
-    const accountAlert = await AccountAlert.findById(id);
-
-    if (!accountAlert) {
-      return res.status(404).json({
-        status: "RS_ERROR",
-        message: "Account alert not found",
-      });
-    }
-
-    // Find the associated account using AccountLoginId from the alert
-    const account = await Account.findOne({ AccountLoginId: accountAlert.AccountLoginId });
-    
-    if (!account) {
-      return res.status(404).json({
-        status: "RS_ERROR",
-        message: "Associated account not found",
-      });
-    }
-
-    // Verify the agent owns this account
-    if (account.agentHolderId.toString() !== req.user.id.toString()) {
-      return res.status(403).json({
-        status: "RS_ERROR",
-        message: "Unauthorized to update this account's alert",
-      });
-    }
-
-    // Check if the alert flag is true
-    if (!accountAlert.alertFlag) {
-      return res.status(400).json({
-        status: "RS_ERROR",
-        message: "Alert flag is already false",
-      });
-    }
-
-    // Update the alert flag to false, lastChecked to current time, and alertOff to current time
-    const currentTime = new Date();
-    const updatedAlert = await AccountAlert.findByIdAndUpdate(
-      id,
-      { 
-        alertFlag: false,
-        lastChecked: currentTime,
-        alertOff: currentTime
-      },
-      { new: true }
-    );
-
-    res.json({
-      status: "RS_OK",
-      data: updatedAlert,
-      message: "Account alert updated successfully",
-    });
-
-  } catch (error) {
-    console.error('Error in updateAccountAlert:', error);
-    res.status(500).json({
-      status: "RS_ERROR",
-      message: "Internal Server Error",
-    });
-  }
-};
-
 exports.updateAccountMobile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -821,4 +741,6 @@ exports.updateAccountMobile = async (req, res) => {
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
+
+
 
