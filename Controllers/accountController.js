@@ -5,8 +5,7 @@ const User= require("../Models/User");
 const TradeAccountInfo = require("../Models/TradeAccountInfo");
 const AccountAlert = require("../Models/AccountAlertInfo");
 const bcrypt = require('bcrypt');
-const { MobileAlertLog,createMobileAlertLogEntry } = require("../Models/AlertHistoryLog");
-
+const { createMobileAlarmLogEntry } = require("../Models/MobileAlarms");
 require("dotenv").config({ path: "./.env" });
 const dayjs = require('dayjs');
 
@@ -800,7 +799,7 @@ exports.updateAccountMobile = async (req, res) => {
     }
 
     if (mobileAlert !== undefined && mobileAlert !== accountToUpdate.mobileAlert) {
-      await createMobileAlertLogEntry(
+      await createMobileAlarmLogEntry(
         accountToUpdate, 
         typeof mobileAlert === "boolean" ? mobileAlert : mobileAlert.toLowerCase() === 'true', 
       );

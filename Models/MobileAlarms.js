@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const { getUTCTime }  = require("../Utils/commonUtils");
 
-const MobileAlertLogSchema = new Schema({
+const MobileAlarmsSchema = new Schema({
   accountId: {
     type: Schema.Types.ObjectId,
     ref: "Account",
@@ -29,16 +29,16 @@ const MobileAlertLogSchema = new Schema({
   },
 });
 
-MobileAlertLogSchema.index({ accountId: 1, changedOn: -1 });
-MobileAlertLogSchema.index({ changedOn: 1 }, { expireAfterSeconds: 14 * 24 * 60 * 60 });
+MobileAlarmsSchema.index({ accountId: 1, changedOn: -1 });
+MobileAlarmsSchema.index({ changedOn: 1 }, { expireAfterSeconds: 14 * 24 * 60 * 60 });
 
-const MobileAlertLog = mongoose.model("MobileAlertLog", MobileAlertLogSchema);
+const MobileAlarmsLog = mongoose.model("MobileAlertLog", MobileAlarmsSchema);
 
-const createMobileAlertLogEntry = async (account, mobileAlertStatus) => {
+const createMobileAlarmLogEntry = async (account, mobileAlertStatus) => {
   try {
     console.log("yeh hai account",account);
     console.log("Yeh hai mobileAlertStatus",mobileAlertStatus);
-    await MobileAlertLog.create({
+    await MobileAlarmsLog.create({
       accountId: account._id,
       accountLoginId: account.AccountLoginId,
       agentHolderId: account.agentHolderId,
@@ -51,6 +51,6 @@ const createMobileAlertLogEntry = async (account, mobileAlertStatus) => {
 };
 
 module.exports = {
-  MobileAlertLog,
-  createMobileAlertLogEntry
+MobileAlarmsLog,
+createMobileAlarmLogEntry
 };
