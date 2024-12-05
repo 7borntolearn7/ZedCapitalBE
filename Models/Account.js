@@ -23,7 +23,7 @@ const AccountSchema = new Schema({
     default: null
   },
   EquityThreshhold: {
-    type: SchemaTypes.Double,
+    type: Number,
     default: null,
   },
   UpperLimitEquityType:{
@@ -32,7 +32,7 @@ const AccountSchema = new Schema({
     default: null
   },
   UpperLimitEquityThreshhold:{
-    type: SchemaTypes.Double,
+    type: Number,
     default: null,
   },
   messageCheck: {
