@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 require("mongoose-double")(mongoose);
 const Schema = mongoose.Schema;
 const SchemaTypes = mongoose.Schema.Types;
+const { getUTCTime }  = require("../Utils/commonUtils");
 
 const AccountSchema = new Schema({
   AccountLoginId: {
@@ -50,8 +51,11 @@ const AccountSchema = new Schema({
   UpperLimitEmailCheck:{
     type: Boolean,
     default: true,
-  }
-,
+  },
+  mobileAlert: {
+    type: Boolean,
+    default: true,
+  },
   agentHolderId: {
     type: Schema.Types.ObjectId,
     ref: "User", 
@@ -69,14 +73,14 @@ const AccountSchema = new Schema({
   },
   createdOn: {
     type: Date,
-    default: Date.now,
+    default: getUTCTime,
   },
   createdBy: {
     type: String,
   },
   updatedOn: {
     type: Date,
-    default: Date.now,
+    default: getUTCTime,
   },
   updatedBy: {
     type: String,
@@ -87,7 +91,6 @@ const AccountSchema = new Schema({
   },
 });
 
-// Indexing for faster search of accounts by agentHolder
 AccountSchema.index({ agentHolder: 1 });
 
 const Account = mongoose.model("Account", AccountSchema);

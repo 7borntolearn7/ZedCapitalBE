@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-
+const { getUTCTime } = require("../Utils/commonUtils");
 const UserSchema = new Schema({
   role: {
     type: String,
@@ -38,14 +38,14 @@ const UserSchema = new Schema({
   },
   createdOn: {
     type: Date,
-    default: Date.now,
+    default: getUTCTime,
   },
   createdBy: {
     type: String,
   },
   updatedOn: {
     type: Date,
-    default: Date.now,
+    default: getUTCTime,
   },
   updatedBy: {
     type: String,

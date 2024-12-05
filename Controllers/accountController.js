@@ -5,6 +5,7 @@ const User= require("../Models/User");
 const TradeAccountInfo = require("../Models/TradeAccountInfo");
 const AccountAlert = require("../Models/AccountAlertInfo");
 const bcrypt = require('bcrypt');
+const { MobileAlertLog,createMobileAlertLogEntry } = require("../Models/AlertHistoryLog");
 
 require("dotenv").config({ path: "./.env" });
 const dayjs = require('dayjs');
@@ -374,7 +375,6 @@ exports.updateAccount = async (req, res) => {
   }
 };
 
-
 exports.updateAccountPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -474,6 +474,7 @@ exports.getAccounts = async (req, res) => {
       agentHolderId: account.agentHolderId,
       agentHolderName: account.agentHolderName,
       active: account.active,
+      mobileAlert:account.mobileAlert,
       createdOn: account.createdOn,
       updatedOn: account.updatedOn,
     }));
@@ -752,14 +753,13 @@ exports.updateAccountMobile = async (req, res) => {
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
       active,
+      mobileAlert, 
     } = req.body;
 
     const accountToUpdate = await Account.findById(id);
-
     if (!accountToUpdate) {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
-
 
     if (req.user.role === 'admin') {
 
@@ -777,7 +777,6 @@ exports.updateAccountMobile = async (req, res) => {
       });
     }
 
-
     if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
     if (EquityType) updateFields.EquityType = EquityType;
@@ -785,28 +784,32 @@ exports.updateAccountMobile = async (req, res) => {
     if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
     if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
 
+    const booleanFields = {
+      messageCheck,
+      emailCheck,
+      UpperLimitMessageCheck,
+      UpperLimitEmailCheck,
+      active,
+      mobileAlert,
+    };
 
-    if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
-      updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
+    for (const [key, value] of Object.entries(booleanFields)) {
+      if (value !== undefined) {
+        updateFields[key] = typeof value === "boolean" ? value : value.toLowerCase() === 'true';
+      }
     }
-    if (typeof emailCheck === "boolean" || typeof emailCheck === "string") {
-      updateFields.emailCheck = typeof emailCheck === "boolean" ? emailCheck : emailCheck.toLowerCase() === 'true';
-    }
-    if (typeof UpperLimitMessageCheck === "boolean" || typeof UpperLimitMessageCheck === "string") {
-      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
-    }
-    if (typeof UpperLimitEmailCheck === "boolean" || typeof UpperLimitEmailCheck === "string") {
-      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
-    }
-    if (typeof active === "boolean" || typeof active === "string") {
-      updateFields.active = typeof active === "boolean" ? active : active.toLowerCase() === 'true';
+
+    if (mobileAlert !== undefined && mobileAlert !== accountToUpdate.mobileAlert) {
+      await createMobileAlertLogEntry(
+        accountToUpdate, 
+        typeof mobileAlert === "boolean" ? mobileAlert : mobileAlert.toLowerCase() === 'true', 
+      );
     }
 
     if (req.user) updateFields.updatedBy = req.user.firstName;
     updateFields.updatedOn = Date.now();
 
     const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
-
     if (!updatedAccount) {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
@@ -817,10 +820,7 @@ exports.updateAccountMobile = async (req, res) => {
       message: "Account updated successfully",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error updating account:", error.message);
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
-
-
-
