@@ -850,11 +850,10 @@ exports.getMobileAlertAccounts = async (req, res) => {
       message: "Internal Server Error" 
     });
   }
-};
+}; 
 
 exports.turnOffAgentMobileAlerts = async (req, res) => {
   try {
-    // Ensure only agents can access this endpoint
     if (req.user.role !== 'agent') {
       return res.status(403).json({
         status: "RS_ERROR",
@@ -862,7 +861,11 @@ exports.turnOffAgentMobileAlerts = async (req, res) => {
       });
     }
 
-    // Update all accounts for the agent where mobile alerts are currently on
+    const accountsToUpdate = await Account.find({ 
+      agentHolderId: req.user.id, 
+      mobileAlert: true 
+    });
+
     const updateResult = await Account.updateMany(
       { 
         agentHolderId: req.user.id, 
@@ -876,6 +879,10 @@ exports.turnOffAgentMobileAlerts = async (req, res) => {
         } 
       }
     );
+
+    await Promise.all(accountsToUpdate.map(async (account) => {
+      await createMobileAlarmLogEntry(account, false);
+    }));
 
     res.status(200).json({
       status: "RS_OK",
