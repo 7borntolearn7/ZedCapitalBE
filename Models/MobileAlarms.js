@@ -27,7 +27,7 @@ const MobileAlarmsSchema = new Schema({
     default: getUTCTime,
     expires: 14 * 24 * 60 * 60  
   },
-});
+},{ strict: true });
 
 MobileAlarmsSchema.index({ accountId: 1, changedOn: -1 });
 MobileAlarmsSchema.index({ changedOn: 1 }, { expireAfterSeconds: 14 * 24 * 60 * 60 });
