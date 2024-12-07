@@ -823,3 +823,74 @@ exports.updateAccountMobile = async (req, res) => {
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
+
+exports.getMobileAlertAccounts = async (req, res) => {
+  try {
+    if (req.user.role !== 'agent') {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: "Unauthorized to access mobile alert accounts",
+      });
+    }
+    const mobileAlertAccounts = await Account.find({ 
+      mobileAlert: true, 
+      agentHolderId: req.user.id 
+    }).select('AccountLoginId  mobileAlert');
+
+    res.status(200).json({
+      status: "RS_OK",
+      data: mobileAlertAccounts,
+      message: "Mobile Alert Accounts Retrieved Successfully",
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ 
+      status: "RS_ERROR", 
+      message: "Internal Server Error" 
+    });
+  }
+};
+
+exports.turnOffAgentMobileAlerts = async (req, res) => {
+  try {
+    // Ensure only agents can access this endpoint
+    if (req.user.role !== 'agent') {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: "Unauthorized to modify mobile alerts",
+      });
+    }
+
+    // Update all accounts for the agent where mobile alerts are currently on
+    const updateResult = await Account.updateMany(
+      { 
+        agentHolderId: req.user.id, 
+        mobileAlert: true 
+      }, 
+      { 
+        $set: { 
+          mobileAlert: false,
+          updatedBy: req.user.firstName,
+          updatedOn: new Date() 
+        } 
+      }
+    );
+
+    res.status(200).json({
+      status: "RS_OK",
+      data: {
+        modifiedCount: updateResult.modifiedCount,
+        matchedCount: updateResult.matchedCount
+      },
+      message: "Mobile Alerts Turned Off Successfully",
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ 
+      status: "RS_ERROR", 
+      message: "Internal Server Error" 
+    });
+  }
+};

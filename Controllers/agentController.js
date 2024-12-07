@@ -243,7 +243,6 @@ exports.deleteAgent = async (req, res) => {
   }
 };
   
-
 exports.getAllAgents = async (req, res) => {
   try {
     const agents = await User.find({ role: "agent" }).select("-password -jwtTokens -__v");
