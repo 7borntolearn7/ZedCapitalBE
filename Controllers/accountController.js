@@ -833,9 +833,8 @@ exports.getMobileAlertAccounts = async (req, res) => {
       });
     }
     const mobileAlertAccounts = await Account.find({ 
-      mobileAlert: true, 
       agentHolderId: req.user.id 
-    }).select('AccountLoginId  mobileAlert');
+    }).select('AccountLoginId mobileAlert');
 
     res.status(200).json({
       status: "RS_OK",
@@ -850,9 +849,9 @@ exports.getMobileAlertAccounts = async (req, res) => {
       message: "Internal Server Error" 
     });
   }
-}; 
-
-exports.turnOffAgentMobileAlerts = async (req, res) => {
+};
+ 
+exports.toggleAgentMobileAlerts = async (req, res) => {
   try {
     if (req.user.role !== 'agent') {
       return res.status(403).json({
@@ -861,36 +860,50 @@ exports.turnOffAgentMobileAlerts = async (req, res) => {
       });
     }
 
+    // Fetch accounts belonging to the agent
     const accountsToUpdate = await Account.find({ 
-      agentHolderId: req.user.id, 
-      mobileAlert: true 
+      agentHolderId: req.user.id 
     });
 
-    const updateResult = await Account.updateMany(
-      { 
-        agentHolderId: req.user.id, 
-        mobileAlert: true 
-      }, 
-      { 
-        $set: { 
-          mobileAlert: false,
-          updatedBy: req.user.firstName,
-          updatedOn: new Date() 
-        } 
-      }
-    );
+    if (!accountsToUpdate.length) {
+      return res.status(404).json({
+        status: "RS_ERROR",
+        message: "No accounts found for the agent",
+      });
+    }
 
-    await Promise.all(accountsToUpdate.map(async (account) => {
-      await createMobileAlarmLogEntry(account, false);
-    }));
+    // Update each account and create logs for changes
+    const updateResults = await Promise.all(
+      accountsToUpdate.map(async (account) => {
+        // Toggle the mobileAlert status
+        const newStatus = !account.mobileAlert;
+
+        // Update the account
+        await Account.updateOne(
+          { _id: account._id },
+          { 
+            $set: { 
+              mobileAlert: newStatus,
+              updatedBy: req.user.firstName,
+              updatedOn: new Date(),
+            } 
+          }
+        );
+
+        // Log the change
+        await createMobileAlarmLogEntry(account, newStatus);
+
+        return { accountId: account._id, newStatus };
+      })
+    );
 
     res.status(200).json({
       status: "RS_OK",
       data: {
-        modifiedCount: updateResult.modifiedCount,
-        matchedCount: updateResult.matchedCount
+        updatedAccounts: updateResults.length,
+        changes: updateResults,
       },
-      message: "Mobile Alerts Turned Off Successfully",
+      message: "Mobile Alerts Toggled Successfully",
     });
 
   } catch (error) {

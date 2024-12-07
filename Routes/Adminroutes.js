@@ -27,7 +27,7 @@ router.get("/trade-account-info",auth, AccountController.getTradeAccountInfo);
 router.put("/updateAlert/:id",auth,AccountController.updateAccountAlert);
 router.put("/updateAccountMobile/:id",auth,AccountController.updateAccountMobile);
 router.get("/getMobileAlarmDetails",auth,AccountController.getMobileAlertAccounts);
-router.put("/updateMobileAlarms",auth,AccountController.turnOffAgentMobileAlerts);
+router.put("/toggleAgentMobileAlarms",auth,AccountController.toggleAgentMobileAlerts);
 
 
 module.exports = router;
