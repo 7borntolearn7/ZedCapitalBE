@@ -832,16 +832,23 @@ exports.getMobileAlertAccounts = async (req, res) => {
         message: "Unauthorized to access mobile alert accounts",
       });
     }
-    const mobileAlertAccounts = await Account.find({ 
+    const [singleAccount] = await Account.find({ 
       agentHolderId: req.user.id 
-    }).select('AccountLoginId mobileAlert');
+    })
+      .select('AccountLoginId mobileAlert')
+      .limit(1);
 
+    const remainingCount = await Account.countDocuments({
+      agentHolderId: req.user.id,
+    });
     res.status(200).json({
       status: "RS_OK",
-      data: mobileAlertAccounts,
-      message: "Mobile Alert Accounts Retrieved Successfully",
+      data: {
+        account: singleAccount || null,
+        remainingCount: singleAccount ? remainingCount - 1 : remainingCount,
+      },
+      message: "Mobile Alert Account Retrieved Successfully",
     });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ 
