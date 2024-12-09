@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const Account = require("../Models/Account");
 const User= require("../Models/User");
 const TradeAccountInfo = require("../Models/TradeAccountInfo");
+const { MobileAlarmsLog }= require("../Models/MobileAlarms");
 const AccountAlert = require("../Models/AccountAlertInfo");
 const bcrypt = require('bcrypt');
 const { createMobileAlarmLogEntry } = require("../Models/MobileAlarms");
@@ -918,6 +919,104 @@ exports.toggleAgentMobileAlerts = async (req, res) => {
     res.status(500).json({ 
       status: "RS_ERROR", 
       message: "Internal Server Error" 
+    });
+  }
+};
+
+exports.getMobileAlarmLogs = async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+
+    if (loggedInUser.role !== 'admin') {
+      return res.status(403).json({
+        status: "RS_ERROR",
+        message: 'Unauthorized access. Admin rights required.'
+      });
+    }
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status,
+      startDate,
+      endDate
+    } = req.body;
+
+    const skip = (page - 1) * limit;
+
+    const searchQuery = search ? {
+      $or: [
+        { accountLoginId: { $regex: search, $options: 'i' } }
+      ]
+    } : {};
+
+    const statusFilter = status !== undefined && status !== null
+    ? { mobileAlertStatus: status === true } 
+    : {};
+
+    const dateFilter = {};
+    if (startDate) {
+      dateFilter.changedOn = { $gte: new Date(startDate) };
+    }
+    if (endDate) {
+      dateFilter.changedOn = {
+        ...dateFilter.changedOn,
+        $lte: new Date(endDate)
+      };
+    }
+
+    const combinedFilter = {
+      ...searchQuery,
+      ...statusFilter,
+      ...dateFilter
+    };
+
+    const mobileAlarmLogs = await MobileAlarmsLog.find(combinedFilter)
+      .populate({
+        path: 'accountId',
+        select: 'AccountLoginId ServerName agentHolderName'
+      })
+      .populate({
+        path: 'agentHolderId',
+        select: 'name email'
+      })
+      .sort({ changedOn: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalLogs = await MobileAlarmsLog.countDocuments(combinedFilter);
+
+    res.json({
+      status: "RS_OK",
+      data: {
+        logs: mobileAlarmLogs.map(log => ({
+          _id: log._id,
+          accountLoginId: log.accountLoginId,
+          accountDetails: {
+            serverName: log.accountId?.ServerName,
+            agentHolderName: log.accountId?.agentHolderName
+          },
+          agentHolder: {
+            name: log.agentHolderId?.name,
+            email: log.agentHolderId?.email
+          },
+          mobileAlertStatus: log.mobileAlertStatus,
+          changedOn: log.changedOn
+        })),
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalLogs / limit),
+          totalLogs: totalLogs,
+          logsPerPage: limit
+        }
+      },
+      message: "Accounts Log Fetched Successfully"
+    });
+  } catch (error) {
+    console.error('Error in getMobileAlarmLogs:', error);
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: 'Internal server error'
     });
   }
 };

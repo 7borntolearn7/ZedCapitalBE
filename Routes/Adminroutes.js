@@ -28,6 +28,7 @@ router.put("/updateAlert/:id",auth,AccountController.updateAccountAlert);
 router.put("/updateAccountMobile/:id",auth,AccountController.updateAccountMobile);
 router.get("/getMobileAlarmDetails",auth,AccountController.getMobileAlertAccounts);
 router.put("/toggleAgentMobileAlarms",auth,AccountController.toggleAgentMobileAlerts);
+router.post("/viewlogs",auth,AccountController.getMobileAlarmLogs);
 
 
 module.exports = router;
