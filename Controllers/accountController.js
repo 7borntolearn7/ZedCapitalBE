@@ -752,64 +752,92 @@ exports.updateAccountMobile = async (req, res) => {
       emailCheck,
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
-      active,
-      mobileAlert, 
+      active
     } = req.body;
 
+    // Find the account to update
     const accountToUpdate = await Account.findById(id);
     if (!accountToUpdate) {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
 
-    if (req.user.role === 'admin') {
-
-    } else if (req.user.role === 'agent') {
-      if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
-        return res.status(401).json({
-          status: "RS_ERROR",
-          message: "Unauthorized to update this account",
-        });
+    // Authorization checks
+    const authorizeUpdate = (user, account) => {
+      if (user.role === 'admin') return true;
+      if (user.role === 'agent') {
+        return String(account.agentHolderId) === String(user.id);
       }
-    } else {
+      return false;
+    };
+
+    if (!authorizeUpdate(req.user, accountToUpdate)) {
       return res.status(401).json({
         status: "RS_ERROR",
         message: "Unauthorized to update this account",
       });
     }
 
+    // Validate Equity Thresholds
+    const validateEquityThreshold = (type, threshold) => {
+      if (type === 'percentage') {
+        if (threshold !== undefined) {
+          if (threshold < 0 || threshold > 100) {
+            throw new Error('Percentage threshold must be between 0 and 100');
+          }
+        }
+      }
+      return threshold;
+    };
+
+    // Prepare update fields
     if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
+    
+    // Validate and set Equity Type and Thresholds
     if (EquityType) updateFields.EquityType = EquityType;
-    if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
+    if (EquityThreshhold !== undefined) {
+      updateFields.EquityThreshhold = validateEquityThreshold(
+        EquityType || accountToUpdate.EquityType, 
+        EquityThreshhold
+      );
+    }
+    
     if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
-    if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
+    if (UpperLimitEquityThreshhold !== undefined) {
+      updateFields.UpperLimitEquityThreshhold = validateEquityThreshold(
+        UpperLimitEquityType || accountToUpdate.UpperLimitEquityType, 
+        UpperLimitEquityThreshhold
+      );
+    }
 
+    // Handle boolean fields
     const booleanFields = {
       messageCheck,
       emailCheck,
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
-      active,
-      mobileAlert,
+      active
     };
 
     for (const [key, value] of Object.entries(booleanFields)) {
       if (value !== undefined) {
-        updateFields[key] = typeof value === "boolean" ? value : value.toLowerCase() === 'true';
+        updateFields[key] = typeof value === "boolean" 
+          ? value 
+          : value.toLowerCase() === 'true';
       }
     }
 
-    if (mobileAlert !== undefined && mobileAlert !== accountToUpdate.mobileAlert) {
-      await createMobileAlarmLogEntry(
-        accountToUpdate, 
-        typeof mobileAlert === "boolean" ? mobileAlert : mobileAlert.toLowerCase() === 'true', 
-      );
-    }
 
+    // Set update metadata
     if (req.user) updateFields.updatedBy = req.user.firstName;
     updateFields.updatedOn = Date.now();
 
-    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
+    // Perform the update
+    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { 
+      new: true,
+      runValidators: true // This ensures mongoose schema validations are run
+    });
+
     if (!updatedAccount) {
       return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
     }
@@ -821,7 +849,19 @@ exports.updateAccountMobile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating account:", error.message);
-    res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
+    
+    // Handle specific validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        status: "RS_ERROR", 
+        message: error.message 
+      });
+    }
+
+    res.status(500).json({ 
+      status: "RS_ERROR", 
+      message: error.message || "Internal Server Error" 
+    });
   }
 };
 
