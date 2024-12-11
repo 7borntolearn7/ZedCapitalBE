@@ -1,14 +1,14 @@
 const CryptoJS = require("crypto-js");
 const jwt = require("jsonwebtoken");
 const Account = require("../Models/Account");
-const User= require("../Models/User");
+const User = require("../Models/User");
 const TradeAccountInfo = require("../Models/TradeAccountInfo");
-const { MobileAlarmsLog }= require("../Models/MobileAlarms");
+const { MobileAlarmsLog } = require("../Models/MobileAlarms");
 const AccountAlert = require("../Models/AccountAlertInfo");
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
 const { createMobileAlarmLogEntry } = require("../Models/MobileAlarms");
 require("dotenv").config({ path: "./.env" });
-const dayjs = require('dayjs');
+const dayjs = require("dayjs");
 
 exports.createAccount = async (req, res) => {
   try {
@@ -40,7 +40,8 @@ exports.createAccount = async (req, res) => {
 
     // Validate equity threshold combinations
     const hasLowerLimit = EquityType && EquityThreshhold !== undefined;
-    const hasUpperLimit = UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined;
+    const hasUpperLimit =
+      UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined;
     const hasIncompleteLimit =
       (EquityType && !EquityThreshhold) ||
       (!EquityType && EquityThreshhold !== undefined) ||
@@ -50,35 +51,39 @@ exports.createAccount = async (req, res) => {
     if (!hasLowerLimit && !hasUpperLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "At least one complete limit combination (EquityType + EquityThreshhold) or (UpperLimitEquityType + UpperLimitEquityThreshhold) is required",
+        message:
+          "At least one complete limit combination (EquityType + EquityThreshhold) or (UpperLimitEquityType + UpperLimitEquityThreshhold) is required",
       });
     }
 
     if (hasIncompleteLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "Equity type and threshold must be provided together for either lower or upper limits",
+        message:
+          "Equity type and threshold must be provided together for either lower or upper limits",
       });
     }
 
     // Validate percentage ranges for lower limit
-    if (hasLowerLimit && EquityType === 'percentage') {
+    if (hasLowerLimit && EquityType === "percentage") {
       const lowerThreshold = parseFloat(EquityThreshhold);
       if (isNaN(lowerThreshold) || lowerThreshold < 0 || lowerThreshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Lower limit equity threshold must be between 0 and 100 when type is percentage",
+          message:
+            "Lower limit equity threshold must be between 0 and 100 when type is percentage",
         });
       }
     }
 
     // Validate percentage ranges for upper limit
-    if (hasUpperLimit && UpperLimitEquityType === 'percentage') {
+    if (hasUpperLimit && UpperLimitEquityType === "percentage") {
       const upperThreshold = parseFloat(UpperLimitEquityThreshhold);
       if (isNaN(upperThreshold) || upperThreshold < 0 || upperThreshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
+          message:
+            "Upper limit equity threshold must be between 0 and 100 when type is percentage",
         });
       }
     }
@@ -88,18 +93,20 @@ exports.createAccount = async (req, res) => {
       const lowerThreshold = parseFloat(EquityThreshhold);
       const upperThreshold = parseFloat(UpperLimitEquityThreshhold);
 
-      if (EquityType === 'fixed') {
+      if (EquityType === "fixed") {
         if (upperThreshold < lowerThreshold) {
           return res.status(400).json({
             status: "RS_ERROR",
-            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
+            message:
+              "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
           });
         }
-      } else if (EquityType === 'percentage') {
+      } else if (EquityType === "percentage") {
         if (upperThreshold < lowerThreshold) {
           return res.status(400).json({
             status: "RS_ERROR",
-            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
+            message:
+              "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
           });
         }
       }
@@ -108,23 +115,26 @@ exports.createAccount = async (req, res) => {
     // Check if an account with the same AccountLoginId already exists
     const existingAccount = await Account.findOne({ AccountLoginId });
     if (existingAccount) {
-      return res.status(400).json({ status: "RS_ERROR", message: "Account already exists" });
+      return res
+        .status(400)
+        .json({ status: "RS_ERROR", message: "Account already exists" });
     }
 
     let accountHolder = null;
-    let agentHolderName = '';
+    let agentHolderName = "";
 
     // Check if the user creating the account is an admin
-    if (req.user.role === 'admin') {
+    if (req.user.role === "admin") {
       if (!agentId) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Agent ID must be provided when creating an account for an agent",
+          message:
+            "Agent ID must be provided when creating an account for an agent",
         });
       }
 
       const agent = await User.findById(agentId);
-      if (!agent || agent.role !== 'agent') {
+      if (!agent || agent.role !== "agent") {
         return res.status(400).json({
           status: "RS_ERROR",
           message: "Invalid agent ID provided",
@@ -134,18 +144,17 @@ exports.createAccount = async (req, res) => {
       if (!agent.active) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "The assigned agent is inactive and cannot be assigned to a new account",
+          message:
+            "The assigned agent is inactive and cannot be assigned to a new account",
         });
       }
 
       accountHolder = agentId;
       agentHolderName = `${agent.firstName}`;
-    } 
-    else if (req.user.role === 'agent') {
+    } else if (req.user.role === "agent") {
       accountHolder = req.user.id;
       agentHolderName = `${req.user.firstName}`;
-    } 
-    else {
+    } else {
       return res.status(403).json({
         status: "RS_ERROR",
         message: "Unauthorized to create an account",
@@ -153,12 +162,18 @@ exports.createAccount = async (req, res) => {
     }
 
     // Determine the mobileAlert field value
-    const existingAccountsForAgent = await Account.find({ agentHolderId: accountHolder });
+    const existingAccountsForAgent = await Account.find({
+      agentHolderId: accountHolder,
+    });
 
     let mobileAlert = true;
     if (existingAccountsForAgent.length > 0) {
-      const allWithMobileAlertTrue = existingAccountsForAgent.every(account => account.mobileAlert === true);
-      const allWithMobileAlertFalse = existingAccountsForAgent.every(account => account.mobileAlert === false);
+      const allWithMobileAlertTrue = existingAccountsForAgent.every(
+        (account) => account.mobileAlert === true
+      );
+      const allWithMobileAlertFalse = existingAccountsForAgent.every(
+        (account) => account.mobileAlert === false
+      );
 
       if (allWithMobileAlertTrue) {
         mobileAlert = true;
@@ -169,16 +184,20 @@ exports.createAccount = async (req, res) => {
 
     const newAccount = new Account({
       AccountLoginId,
-      AccountPassword, 
+      AccountPassword,
       ServerName,
       EquityType: hasLowerLimit ? EquityType : undefined,
       EquityThreshhold: hasLowerLimit ? EquityThreshhold : undefined,
       UpperLimitEquityType: hasUpperLimit ? UpperLimitEquityType : undefined,
-      UpperLimitEquityThreshhold: hasUpperLimitEquityThreshhold ? UpperLimitEquityThreshhold : undefined,
+      UpperLimitEquityThreshhold: hasUpperLimit
+        ? UpperLimitEquityThreshhold
+        : undefined,
       messageCheck: messageCheck !== undefined ? messageCheck : true,
       emailCheck: emailCheck !== undefined ? emailCheck : true,
-      UpperLimitMessageCheck: UpperLimitMessageCheck !== undefined ? UpperLimitMessageCheck : true,
-      UpperLimitEmailCheck: UpperLimitEmailCheck !== undefined ? UpperLimitEmailCheck : true,
+      UpperLimitMessageCheck:
+        UpperLimitMessageCheck !== undefined ? UpperLimitMessageCheck : true,
+      UpperLimitEmailCheck:
+        UpperLimitEmailCheck !== undefined ? UpperLimitEmailCheck : true,
       mobileAlert,
       createdBy: req.user.firstName,
       updatedBy: req.user.firstName,
@@ -196,13 +215,13 @@ exports.createAccount = async (req, res) => {
       data: savedAccount,
       message: "Account Created Successfully",
     });
-
   } catch (error) {
     console.error(error);
-    res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
+    res
+      .status(500)
+      .json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
-
 
 exports.updateAccount = async (req, res) => {
   try {
@@ -221,59 +240,80 @@ exports.updateAccount = async (req, res) => {
       UpperLimitEmailCheck,
       agentId,
       active,
-      userPassword
+      userPassword,
     } = req.body;
 
     const accountToUpdate = await Account.findById(id);
 
     if (!accountToUpdate) {
-      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Account not found" });
     }
 
     // Determine whether to consider lower limits
-    const shouldConsiderLowerLimits = 
-      accountToUpdate.EquityType !== null || 
+    const shouldConsiderLowerLimits =
+      accountToUpdate.EquityType !== null ||
       accountToUpdate.EquityThreshhold !== null ||
       EquityType !== undefined ||
       EquityThreshhold !== undefined;
 
     // Determine whether to consider upper limits
-    const shouldConsiderUpperLimits = 
-      accountToUpdate.UpperLimitEquityType !== null || 
+    const shouldConsiderUpperLimits =
+      accountToUpdate.UpperLimitEquityType !== null ||
       accountToUpdate.UpperLimitEquityThreshhold !== null ||
       UpperLimitEquityType !== undefined ||
       UpperLimitEquityThreshhold !== undefined;
 
     // Get final values for lower limits
-    const finalEquityType = shouldConsiderLowerLimits ? 
-      (EquityType || accountToUpdate.EquityType) : null;
-    const finalEquityThreshhold = shouldConsiderLowerLimits ?
-      (EquityThreshhold !== undefined ? EquityThreshhold : accountToUpdate.EquityThreshhold) : null;
+    const finalEquityType = shouldConsiderLowerLimits
+      ? EquityType || accountToUpdate.EquityType
+      : null;
+    const finalEquityThreshhold = shouldConsiderLowerLimits
+      ? EquityThreshhold !== undefined
+        ? EquityThreshhold
+        : accountToUpdate.EquityThreshhold
+      : null;
 
     // Get final values for upper limits
-    const finalUpperLimitEquityType = shouldConsiderUpperLimits ? 
-      (UpperLimitEquityType || accountToUpdate.UpperLimitEquityType) : null;
-    const finalUpperLimitEquityThreshhold = shouldConsiderUpperLimits ?
-      (UpperLimitEquityThreshhold !== undefined ? UpperLimitEquityThreshhold : accountToUpdate.UpperLimitEquityThreshhold) : null;
+    const finalUpperLimitEquityType = shouldConsiderUpperLimits
+      ? UpperLimitEquityType || accountToUpdate.UpperLimitEquityType
+      : null;
+    const finalUpperLimitEquityThreshhold = shouldConsiderUpperLimits
+      ? UpperLimitEquityThreshhold !== undefined
+        ? UpperLimitEquityThreshhold
+        : accountToUpdate.UpperLimitEquityThreshhold
+      : null;
 
     // Validate combinations for both limits
-    const hasLowerLimit = shouldConsiderLowerLimits && finalEquityType && finalEquityThreshhold !== undefined;
-    const hasUpperLimit = shouldConsiderUpperLimits && finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined;
-    
+    const hasLowerLimit =
+      shouldConsiderLowerLimits &&
+      finalEquityType &&
+      finalEquityThreshhold !== undefined;
+    const hasUpperLimit =
+      shouldConsiderUpperLimits &&
+      finalUpperLimitEquityType &&
+      finalUpperLimitEquityThreshhold !== undefined;
+
     // Check for incomplete combinations
-    const hasIncompleteLowerLimit = shouldConsiderLowerLimits && 
-      ((finalEquityType && finalEquityThreshhold === undefined) || 
-       (!finalEquityType && finalEquityThreshhold !== undefined));
-                                  
-    const hasIncompleteUpperLimit = shouldConsiderUpperLimits && 
-      ((finalUpperLimitEquityType && finalUpperLimitEquityThreshhold === undefined) || 
-       (!finalUpperLimitEquityType && finalUpperLimitEquityThreshhold !== undefined));
+    const hasIncompleteLowerLimit =
+      shouldConsiderLowerLimits &&
+      ((finalEquityType && finalEquityThreshhold === undefined) ||
+        (!finalEquityType && finalEquityThreshhold !== undefined));
+
+    const hasIncompleteUpperLimit =
+      shouldConsiderUpperLimits &&
+      ((finalUpperLimitEquityType &&
+        finalUpperLimitEquityThreshhold === undefined) ||
+        (!finalUpperLimitEquityType &&
+          finalUpperLimitEquityThreshhold !== undefined));
 
     // Ensure at least one complete limit exists
     if (!hasLowerLimit && !hasUpperLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "At least one complete limit combination must remain after update",
+        message:
+          "At least one complete limit combination must remain after update",
       });
     }
 
@@ -281,48 +321,65 @@ exports.updateAccount = async (req, res) => {
     if (hasIncompleteLowerLimit || hasIncompleteUpperLimit) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "Equity type and threshold must be provided together for either lower or upper limits",
+        message:
+          "Equity type and threshold must be provided together for either lower or upper limits",
       });
     }
 
     // Validate percentage ranges for lower limit
-    if (shouldConsiderLowerLimits && finalEquityType === 'percentage' && finalEquityThreshhold !== undefined) {
+    if (
+      shouldConsiderLowerLimits &&
+      finalEquityType === "percentage" &&
+      finalEquityThreshhold !== undefined
+    ) {
       const threshold = parseFloat(finalEquityThreshhold);
       if (isNaN(threshold) || threshold < 0 || threshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Equity threshold must be between 0 and 100 when type is percentage",
+          message:
+            "Equity threshold must be between 0 and 100 when type is percentage",
         });
       }
     }
 
     // Validate percentage ranges for upper limit
-    if (shouldConsiderUpperLimits && finalUpperLimitEquityType === 'percentage' && finalUpperLimitEquityThreshhold !== undefined) {
+    if (
+      shouldConsiderUpperLimits &&
+      finalUpperLimitEquityType === "percentage" &&
+      finalUpperLimitEquityThreshhold !== undefined
+    ) {
       const threshold = parseFloat(finalUpperLimitEquityThreshhold);
       if (isNaN(threshold) || threshold < 0 || threshold > 100) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
+          message:
+            "Upper limit equity threshold must be between 0 and 100 when type is percentage",
         });
       }
     }
 
-    if (hasLowerLimit && hasUpperLimit && finalEquityType === finalUpperLimitEquityType) {
+    if (
+      hasLowerLimit &&
+      hasUpperLimit &&
+      finalEquityType === finalUpperLimitEquityType
+    ) {
       const lowerThreshold = parseFloat(finalEquityThreshhold);
       const upperThreshold = parseFloat(finalUpperLimitEquityThreshhold);
 
-      if (finalEquityType === 'fixed') {
+      if (finalEquityType === "fixed") {
         if (upperThreshold < lowerThreshold) {
           return res.status(400).json({
             status: "RS_ERROR",
-            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
+            message:
+              "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
           });
         }
-      } else if (finalEquityType === 'percentage') {
+      } else if (finalEquityType === "percentage") {
         if (upperThreshold < lowerThreshold) {
           return res.status(400).json({
             status: "RS_ERROR",
-            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
+            message:
+              "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
           });
         }
       }
@@ -331,7 +388,7 @@ exports.updateAccount = async (req, res) => {
     // Handle agent update
     if (agentId) {
       const agent = await User.findById(agentId);
-      if (!agent || agent.role !== 'agent') {
+      if (!agent || agent.role !== "agent") {
         return res.status(400).json({
           status: "RS_ERROR",
           message: "Invalid agent ID provided",
@@ -350,9 +407,9 @@ exports.updateAccount = async (req, res) => {
     }
 
     // Role-based authorization checks
-    if (req.user.role === 'admin') {
+    if (req.user.role === "admin") {
       // Admin can update any account
-    } else if (req.user.role === 'agent') {
+    } else if (req.user.role === "agent") {
       if (String(accountToUpdate.agentHolderId) !== String(req.user.id)) {
         return res.status(401).json({
           status: "RS_ERROR",
@@ -373,45 +430,74 @@ exports.updateAccount = async (req, res) => {
     // Update lower limit fields only if they should be considered
     if (shouldConsiderLowerLimits) {
       if (EquityType) updateFields.EquityType = EquityType;
-      if (EquityThreshhold !== undefined) updateFields.EquityThreshhold = EquityThreshhold;
+      if (EquityThreshhold !== undefined)
+        updateFields.EquityThreshhold = EquityThreshhold;
     }
-    
+
     // Update upper limit fields only if they should be considered
     if (shouldConsiderUpperLimits) {
-      if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
-      if (UpperLimitEquityThreshhold !== undefined) updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
+      if (UpperLimitEquityType)
+        updateFields.UpperLimitEquityType = UpperLimitEquityType;
+      if (UpperLimitEquityThreshhold !== undefined)
+        updateFields.UpperLimitEquityThreshhold = UpperLimitEquityThreshhold;
     }
 
     // Handle boolean fields
     if (typeof messageCheck === "boolean" || typeof messageCheck === "string") {
-      updateFields.messageCheck = typeof messageCheck === "boolean" ? messageCheck : messageCheck.toLowerCase() === 'true';
+      updateFields.messageCheck =
+        typeof messageCheck === "boolean"
+          ? messageCheck
+          : messageCheck.toLowerCase() === "true";
     }
 
     if (typeof emailCheck === "boolean" || typeof emailCheck === "string") {
-      updateFields.emailCheck = typeof emailCheck === "boolean" ? emailCheck : emailCheck.toLowerCase() === 'true';
+      updateFields.emailCheck =
+        typeof emailCheck === "boolean"
+          ? emailCheck
+          : emailCheck.toLowerCase() === "true";
     }
 
-    if (typeof UpperLimitMessageCheck === "boolean" || typeof UpperLimitMessageCheck === "string") {
-      updateFields.UpperLimitMessageCheck = typeof UpperLimitMessageCheck === "boolean" ? UpperLimitMessageCheck : UpperLimitMessageCheck.toLowerCase() === 'true';
+    if (
+      typeof UpperLimitMessageCheck === "boolean" ||
+      typeof UpperLimitMessageCheck === "string"
+    ) {
+      updateFields.UpperLimitMessageCheck =
+        typeof UpperLimitMessageCheck === "boolean"
+          ? UpperLimitMessageCheck
+          : UpperLimitMessageCheck.toLowerCase() === "true";
     }
 
-    if (typeof UpperLimitEmailCheck === "boolean" || typeof UpperLimitEmailCheck === "string") {
-      updateFields.UpperLimitEmailCheck = typeof UpperLimitEmailCheck === "boolean" ? UpperLimitEmailCheck : UpperLimitEmailCheck.toLowerCase() === 'true';
+    if (
+      typeof UpperLimitEmailCheck === "boolean" ||
+      typeof UpperLimitEmailCheck === "string"
+    ) {
+      updateFields.UpperLimitEmailCheck =
+        typeof UpperLimitEmailCheck === "boolean"
+          ? UpperLimitEmailCheck
+          : UpperLimitEmailCheck.toLowerCase() === "true";
     }
 
     // Handle active status update
     if (typeof active === "boolean" || typeof active === "string") {
-      const isActiveBoolean = typeof active === 'boolean' ? active : active.toLowerCase() === 'true';
+      const isActiveBoolean =
+        typeof active === "boolean" ? active : active.toLowerCase() === "true";
 
       if (!userPassword) {
-        return res.status(400).json({ status: "RS_ERROR", message: "User password required" });
+        return res
+          .status(400)
+          .json({ status: "RS_ERROR", message: "User password required" });
       }
 
       const loggedInUser = await User.findById(req.user.id);
-      const isPasswordValid = await bcrypt.compare(userPassword, loggedInUser.password);
-      
+      const isPasswordValid = await bcrypt.compare(
+        userPassword,
+        loggedInUser.password
+      );
+
       if (!isPasswordValid) {
-        return res.status(400).json({ status: "RS_ERROR", message: "Incorrect user password" });
+        return res
+          .status(400)
+          .json({ status: "RS_ERROR", message: "Incorrect user password" });
       }
 
       updateFields.active = isActiveBoolean;
@@ -421,16 +507,22 @@ exports.updateAccount = async (req, res) => {
     updateFields.updatedOn = Date.now();
 
     // Update the account
-    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { new: true });
+    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, {
+      new: true,
+    });
 
     if (!updatedAccount) {
-      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Account not found" });
     }
 
     res.json({ status: "RS_OK", data: updatedAccount });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
+    res
+      .status(500)
+      .json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
 
@@ -474,7 +566,8 @@ exports.updateAccountPassword = async (req, res) => {
     if (!agent.active) {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: "Cannot update password because the associated agent is inactive",
+        message:
+          "Cannot update password because the associated agent is inactive",
       });
     }
 
@@ -494,7 +587,6 @@ exports.updateAccountPassword = async (req, res) => {
       status: "RS_OK",
       message: "Password updated successfully",
     });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -509,73 +601,82 @@ exports.getAccounts = async (req, res) => {
     const loggedInUser = req.user;
     let accounts;
 
-    if (loggedInUser.role === 'admin') {
+    if (loggedInUser.role === "admin") {
       accounts = await Account.find();
-    } else if (loggedInUser.role === 'agent') {
+    } else if (loggedInUser.role === "agent") {
       accounts = await Account.find({ agentHolderId: loggedInUser.id });
     } else {
-      return res.status(403).json({ status: "RS_ERROR", message: 'Unauthorized access' });
+      return res
+        .status(403)
+        .json({ status: "RS_ERROR", message: "Unauthorized access" });
     }
 
     // Map accounts without the password
-    const accountsData = accounts.map(account => ({
+    const accountsData = accounts.map((account) => ({
       _id: account._id,
       AccountLoginId: account.AccountLoginId,
       ServerName: account.ServerName,
       EquityType: account.EquityType,
       EquityThreshhold: account.EquityThreshhold,
-      UpperLimitEquityType:account.UpperLimitEquityType,
-      UpperLimitEquityThreshhold:account.UpperLimitEquityThreshhold,
+      UpperLimitEquityType: account.UpperLimitEquityType,
+      UpperLimitEquityThreshhold: account.UpperLimitEquityThreshhold,
       messageCheck: account.messageCheck,
       emailCheck: account.emailCheck,
-      UpperLimitMessageCheck:account.UpperLimitMessageCheck,
-      UpperLimitEmailCheck:account.UpperLimitEmailCheck,
+      UpperLimitMessageCheck: account.UpperLimitMessageCheck,
+      UpperLimitEmailCheck: account.UpperLimitEmailCheck,
       agentHolderId: account.agentHolderId,
       agentHolderName: account.agentHolderName,
       active: account.active,
-      mobileAlert:account.mobileAlert,
+      mobileAlert: account.mobileAlert,
       createdOn: account.createdOn,
       updatedOn: account.updatedOn,
     }));
 
     res.json({ status: "RS_OK", data: accountsData });
   } catch (error) {
-    console.error('Error in getAccounts:', error);
-    res.status(500).json({ status: "RS_ERROR", message: 'Internal server error' });
+    console.error("Error in getAccounts:", error);
+    res
+      .status(500)
+      .json({ status: "RS_ERROR", message: "Internal server error" });
   }
 };
 
 exports.deleteAccount = async (req, res) => {
-    try {
-      const { userId } = req.params; 
-      const { role, id } = req.user; 
-  
-      const account = await Account.findById(userId);
-  
-      if (!account) {
-        return res
-          .status(404)
-          .json({ status: "RS_ERROR", message: "Account not found" });
-      }
-  
-      if (role === 'agent' && account.agentHolderId.toString() !== id.toString()) {
-        return res
-          .status(403)
-          .json({ status: "RS_ERROR", message: "Unauthorized to delete this account" });
-      }
-  
-  
-      const deletedAccount = await Account.findByIdAndDelete(userId); 
-  
-      res.json({ status: "RS_OK", message: "Account deleted successfully" });
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      res
-        .status(500)
-        .json({ status: "RS_ERROR", message: "Internal Server Error" });
+  try {
+    const { userId } = req.params;
+    const { role, id } = req.user;
+
+    const account = await Account.findById(userId);
+
+    if (!account) {
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Account not found" });
     }
+
+    if (
+      role === "agent" &&
+      account.agentHolderId.toString() !== id.toString()
+    ) {
+      return res
+        .status(403)
+        .json({
+          status: "RS_ERROR",
+          message: "Unauthorized to delete this account",
+        });
+    }
+
+    const deletedAccount = await Account.findByIdAndDelete(userId);
+
+    res.json({ status: "RS_OK", message: "Account deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    res
+      .status(500)
+      .json({ status: "RS_ERROR", message: "Internal Server Error" });
+  }
 };
-  
+
 exports.getAccountAlert = async (req, res) => {
   try {
     const loggedInUser = req.user;
@@ -583,7 +684,7 @@ exports.getAccountAlert = async (req, res) => {
     let accountAlerts;
     if (accountLoginId) {
       const account = await Account.findOne({ AccountLoginId: accountLoginId });
-      
+
       if (!account) {
         return res.status(404).json({
           status: "RS_ERROR",
@@ -591,37 +692,44 @@ exports.getAccountAlert = async (req, res) => {
         });
       }
 
-      if (loggedInUser.role === 'agent' && 
-          account.agentHolderId.toString() !== loggedInUser.id.toString()) {
+      if (
+        loggedInUser.role === "agent" &&
+        account.agentHolderId.toString() !== loggedInUser.id.toString()
+      ) {
         return res.status(403).json({
           status: "RS_ERROR",
           message: "Unauthorized to access this account alert",
         });
       }
 
-      accountAlerts = await AccountAlert.findOne({ AccountLoginId: accountLoginId });
-      
+      accountAlerts = await AccountAlert.findOne({
+        AccountLoginId: accountLoginId,
+      });
+
       if (!accountAlerts) {
         return res.status(404).json({
           status: "RS_ERROR",
           message: "Account alert not found",
         });
       }
-    } 
-    else {
-      if (loggedInUser.role === 'admin') {
+    } else {
+      if (loggedInUser.role === "admin") {
         // Admin can see all alerts
         accountAlerts = await AccountAlert.find();
-      } else if (loggedInUser.role === 'agent') {
+      } else if (loggedInUser.role === "agent") {
         // Get all accounts belonging to the agent
         console.log("kya yaha aaya");
-        const agentAccounts = await Account.find({ agentHolderId: loggedInUser.id });
-        const accountLoginIds = agentAccounts.map(account => account.AccountLoginId);
-        console.log("yeh hai loginIds",accountLoginIds);
-        
+        const agentAccounts = await Account.find({
+          agentHolderId: loggedInUser.id,
+        });
+        const accountLoginIds = agentAccounts.map(
+          (account) => account.AccountLoginId
+        );
+        console.log("yeh hai loginIds", accountLoginIds);
+
         // Get alerts for all accounts belonging to the agent
         accountAlerts = await AccountAlert.find({
-          AccountLoginId: { $in: accountLoginIds }
+          AccountLoginId: { $in: accountLoginIds },
         });
       } else {
         return res.status(403).json({
@@ -635,9 +743,8 @@ exports.getAccountAlert = async (req, res) => {
       status: "RS_OK",
       data: accountAlerts,
     });
-
   } catch (error) {
-    console.error('Error in getAccountAlert:', error);
+    console.error("Error in getAccountAlert:", error);
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
@@ -654,7 +761,7 @@ exports.getTradeAccountInfo = async (req, res) => {
     // If accountLoginId is provided, fetch specific trade account info
     if (accountLoginId) {
       const account = await Account.findOne({ AccountLoginId: accountLoginId });
-      
+
       if (!account) {
         return res.status(404).json({
           status: "RS_ERROR",
@@ -663,36 +770,44 @@ exports.getTradeAccountInfo = async (req, res) => {
       }
 
       // Check permissions for specific account
-      if (loggedInUser.role === 'agent' && 
-          account.agentHolderId.toString() !== loggedInUser.id.toString()) {
+      if (
+        loggedInUser.role === "agent" &&
+        account.agentHolderId.toString() !== loggedInUser.id.toString()
+      ) {
         return res.status(403).json({
           status: "RS_ERROR",
           message: "Unauthorized to access this trade account info",
         });
       }
 
-      tradeAccountInfo = await TradeAccountInfo.findOne({ AccountLoginId: accountLoginId });
-      
+      tradeAccountInfo = await TradeAccountInfo.findOne({
+        AccountLoginId: accountLoginId,
+      });
+
       if (!tradeAccountInfo) {
         return res.status(404).json({
           status: "RS_ERROR",
           message: "Trade account info not found",
         });
       }
-    } 
+    }
     // If no accountLoginId provided, fetch all trade account info based on role
     else {
-      if (loggedInUser.role === 'admin') {
+      if (loggedInUser.role === "admin") {
         // Admin can see all trade account info
         tradeAccountInfo = await TradeAccountInfo.find();
-      } else if (loggedInUser.role === 'agent') {
+      } else if (loggedInUser.role === "agent") {
         // Get all accounts belonging to the agent
-        const agentAccounts = await Account.find({ agentHolderId: loggedInUser.id });
-        const accountLoginIds = agentAccounts.map(account => account.AccountLoginId);
-        
+        const agentAccounts = await Account.find({
+          agentHolderId: loggedInUser.id,
+        });
+        const accountLoginIds = agentAccounts.map(
+          (account) => account.AccountLoginId
+        );
+
         // Get trade account info for all accounts belonging to the agent
         tradeAccountInfo = await TradeAccountInfo.find({
-          AccountLoginId: { $in: accountLoginIds }
+          AccountLoginId: { $in: accountLoginIds },
         });
       } else {
         return res.status(403).json({
@@ -706,9 +821,8 @@ exports.getTradeAccountInfo = async (req, res) => {
       status: "RS_OK",
       data: tradeAccountInfo,
     });
-
   } catch (error) {
-    console.error('Error in getTradeAccountInfo:', error);
+    console.error("Error in getTradeAccountInfo:", error);
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
@@ -718,7 +832,7 @@ exports.getTradeAccountInfo = async (req, res) => {
 
 exports.updateAccountAlert = async (req, res) => {
   try {
-    const { id } = req.params;  
+    const { id } = req.params;
 
     if (!id) {
       return res.status(400).json({
@@ -727,7 +841,7 @@ exports.updateAccountAlert = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'agent') {
+    if (req.user.role !== "agent") {
       return res.status(403).json({
         status: "RS_ERROR",
         message: "Only agents can update account alerts",
@@ -744,8 +858,10 @@ exports.updateAccountAlert = async (req, res) => {
     }
 
     // Find the associated account using AccountLoginId from the alert
-    const account = await Account.findOne({ AccountLoginId: accountAlert.AccountLoginId });
-    
+    const account = await Account.findOne({
+      AccountLoginId: accountAlert.AccountLoginId,
+    });
+
     if (!account) {
       return res.status(404).json({
         status: "RS_ERROR",
@@ -773,10 +889,10 @@ exports.updateAccountAlert = async (req, res) => {
     const currentTime = new Date();
     const updatedAlert = await AccountAlert.findByIdAndUpdate(
       id,
-      { 
+      {
         alertFlag: false,
         lastChecked: currentTime,
-        alertOff: currentTime
+        alertOff: currentTime,
       },
       { new: true }
     );
@@ -786,9 +902,8 @@ exports.updateAccountAlert = async (req, res) => {
       data: updatedAlert,
       message: "Account alert updated successfully",
     });
-
   } catch (error) {
-    console.error('Error in updateAccountAlert:', error);
+    console.error("Error in updateAccountAlert:", error);
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
@@ -811,19 +926,21 @@ exports.updateAccountMobile = async (req, res) => {
       emailCheck,
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
-      active
+      active,
     } = req.body;
 
     // Find the account to update
     const accountToUpdate = await Account.findById(id);
     if (!accountToUpdate) {
-      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Account not found" });
     }
 
     // Authorization checks
     const authorizeUpdate = (user, account) => {
-      if (user.role === 'admin') return true;
-      if (user.role === 'agent') {
+      if (user.role === "admin") return true;
+      if (user.role === "agent") {
         return String(account.agentHolderId) === String(user.id);
       }
       return false;
@@ -838,10 +955,10 @@ exports.updateAccountMobile = async (req, res) => {
 
     // Validate Equity Thresholds
     const validateEquityThreshold = (type, threshold) => {
-      if (type === 'percentage') {
+      if (type === "percentage") {
         if (threshold !== undefined) {
           if (threshold < 0 || threshold > 100) {
-            throw new Error('Percentage threshold must be between 0 and 100');
+            throw new Error("Percentage threshold must be between 0 and 100");
           }
         }
       }
@@ -854,23 +971,32 @@ exports.updateAccountMobile = async (req, res) => {
 
     // Validate and set Equity Type and Thresholds
     const currentEquityType = EquityType || accountToUpdate.EquityType;
-    const currentUpperLimitEquityType = UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
-    const currentEquityThreshhold = EquityThreshhold !== undefined 
-      ? validateEquityThreshold(currentEquityType, EquityThreshhold)
-      : accountToUpdate.EquityThreshhold;
-    const currentUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined
-      ? validateEquityThreshold(currentUpperLimitEquityType, UpperLimitEquityThreshhold)
-      : accountToUpdate.UpperLimitEquityThreshhold;
+    const currentUpperLimitEquityType =
+      UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
+    const currentEquityThreshhold =
+      EquityThreshhold !== undefined
+        ? validateEquityThreshold(currentEquityType, EquityThreshhold)
+        : accountToUpdate.EquityThreshhold;
+    const currentUpperLimitEquityThreshhold =
+      UpperLimitEquityThreshhold !== undefined
+        ? validateEquityThreshold(
+            currentUpperLimitEquityType,
+            UpperLimitEquityThreshhold
+          )
+        : accountToUpdate.UpperLimitEquityThreshhold;
 
     // Additional validation for threshold comparison
     if (
-      (currentEquityType === 'fixed' && currentUpperLimitEquityType === 'fixed') ||
-      (currentEquityType === 'percentage' && currentUpperLimitEquityType === 'percentage')
+      (currentEquityType === "fixed" &&
+        currentUpperLimitEquityType === "fixed") ||
+      (currentEquityType === "percentage" &&
+        currentUpperLimitEquityType === "percentage")
     ) {
       if (currentUpperLimitEquityThreshhold < currentEquityThreshhold) {
         return res.status(400).json({
           status: "RS_ERROR",
-          message: "Upper limit equity threshold cannot be less than lower limit equity threshold"
+          message:
+            "Upper limit equity threshold cannot be less than lower limit equity threshold",
         });
       }
     }
@@ -881,9 +1007,11 @@ exports.updateAccountMobile = async (req, res) => {
       updateFields.EquityThreshhold = currentEquityThreshhold;
     }
 
-    if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
+    if (UpperLimitEquityType)
+      updateFields.UpperLimitEquityType = UpperLimitEquityType;
     if (UpperLimitEquityThreshhold !== undefined) {
-      updateFields.UpperLimitEquityThreshhold = currentUpperLimitEquityThreshhold;
+      updateFields.UpperLimitEquityThreshhold =
+        currentUpperLimitEquityThreshhold;
     }
 
     // Handle boolean fields
@@ -892,14 +1020,13 @@ exports.updateAccountMobile = async (req, res) => {
       emailCheck,
       UpperLimitMessageCheck,
       UpperLimitEmailCheck,
-      active
+      active,
     };
 
     for (const [key, value] of Object.entries(booleanFields)) {
       if (value !== undefined) {
-        updateFields[key] = typeof value === "boolean"
-          ? value
-          : value.toLowerCase() === 'true';
+        updateFields[key] =
+          typeof value === "boolean" ? value : value.toLowerCase() === "true";
       }
     }
 
@@ -910,11 +1037,13 @@ exports.updateAccountMobile = async (req, res) => {
     // Perform the update
     const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, {
       new: true,
-      runValidators: true // This ensures mongoose schema validations are run
+      runValidators: true, // This ensures mongoose schema validations are run
     });
 
     if (!updatedAccount) {
-      return res.status(404).json({ status: "RS_ERROR", message: "Account not found" });
+      return res
+        .status(404)
+        .json({ status: "RS_ERROR", message: "Account not found" });
     }
 
     res.json({
@@ -926,32 +1055,32 @@ exports.updateAccountMobile = async (req, res) => {
     console.error("Error updating account:", error.message);
 
     // Handle specific validation errors
-    if (error.name === 'ValidationError') {
+    if (error.name === "ValidationError") {
       return res.status(400).json({
         status: "RS_ERROR",
-        message: error.message
+        message: error.message,
       });
     }
 
     res.status(500).json({
       status: "RS_ERROR",
-      message: error.message || "Internal Server Error"
+      message: error.message || "Internal Server Error",
     });
   }
 };
 
 exports.getMobileAlertAccounts = async (req, res) => {
   try {
-    if (req.user.role !== 'agent') {
+    if (req.user.role !== "agent") {
       return res.status(403).json({
         status: "RS_ERROR",
         message: "Unauthorized to access mobile alert accounts",
       });
     }
-    const [singleAccount] = await Account.find({ 
-      agentHolderId: req.user.id 
+    const [singleAccount] = await Account.find({
+      agentHolderId: req.user.id,
     })
-      .select('AccountLoginId mobileAlert')
+      .select("AccountLoginId mobileAlert")
       .limit(1);
 
     const remainingCount = await Account.countDocuments({
@@ -967,16 +1096,16 @@ exports.getMobileAlertAccounts = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ 
-      status: "RS_ERROR", 
-      message: "Internal Server Error" 
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
     });
   }
 };
- 
+
 exports.toggleAgentMobileAlerts = async (req, res) => {
   try {
-    if (req.user.role !== 'agent') {
+    if (req.user.role !== "agent") {
       return res.status(403).json({
         status: "RS_ERROR",
         message: "Unauthorized to modify mobile alerts",
@@ -984,8 +1113,8 @@ exports.toggleAgentMobileAlerts = async (req, res) => {
     }
 
     // Fetch accounts belonging to the agent
-    const accountsToUpdate = await Account.find({ 
-      agentHolderId: req.user.id 
+    const accountsToUpdate = await Account.find({
+      agentHolderId: req.user.id,
     });
 
     if (!accountsToUpdate.length) {
@@ -1004,12 +1133,12 @@ exports.toggleAgentMobileAlerts = async (req, res) => {
         // Update the account
         await Account.updateOne(
           { _id: account._id },
-          { 
-            $set: { 
+          {
+            $set: {
               mobileAlert: newStatus,
               updatedBy: req.user.firstName,
               updatedOn: new Date(),
-            } 
+            },
           }
         );
 
@@ -1028,12 +1157,11 @@ exports.toggleAgentMobileAlerts = async (req, res) => {
       },
       message: "Mobile Alerts Toggled Successfully",
     });
-
   } catch (error) {
     console.error(error);
-    res.status(500).json({ 
-      status: "RS_ERROR", 
-      message: "Internal Server Error" 
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: "Internal Server Error",
     });
   }
 };
@@ -1042,10 +1170,10 @@ exports.getMobileAlarmLogs = async (req, res) => {
   try {
     const loggedInUser = req.user;
 
-    if (loggedInUser.role !== 'admin') {
+    if (loggedInUser.role !== "admin") {
       return res.status(403).json({
         status: "RS_ERROR",
-        message: 'Unauthorized access. Admin rights required.'
+        message: "Unauthorized access. Admin rights required.",
       });
     }
     const {
@@ -1054,20 +1182,21 @@ exports.getMobileAlarmLogs = async (req, res) => {
       search,
       status,
       startDate,
-      endDate
+      endDate,
     } = req.body;
 
     const skip = (page - 1) * limit;
 
-    const searchQuery = search ? {
-      $or: [
-        { accountLoginId: { $regex: search, $options: 'i' } }
-      ]
-    } : {};
+    const searchQuery = search
+      ? {
+          $or: [{ accountLoginId: { $regex: search, $options: "i" } }],
+        }
+      : {};
 
-    const statusFilter = status !== undefined && status !== null
-    ? { mobileAlertStatus: status === true } 
-    : {};
+    const statusFilter =
+      status !== undefined && status !== null
+        ? { mobileAlertStatus: status === true }
+        : {};
 
     const dateFilter = {};
     if (startDate) {
@@ -1076,24 +1205,24 @@ exports.getMobileAlarmLogs = async (req, res) => {
     if (endDate) {
       dateFilter.changedOn = {
         ...dateFilter.changedOn,
-        $lte: new Date(endDate)
+        $lte: new Date(endDate),
       };
     }
 
     const combinedFilter = {
       ...searchQuery,
       ...statusFilter,
-      ...dateFilter
+      ...dateFilter,
     };
 
     const mobileAlarmLogs = await MobileAlarmsLog.find(combinedFilter)
       .populate({
-        path: 'accountId',
-        select: 'AccountLoginId ServerName agentHolderName'
+        path: "accountId",
+        select: "AccountLoginId ServerName agentHolderName",
       })
       .populate({
-        path: 'agentHolderId',
-        select: 'name email'
+        path: "agentHolderId",
+        select: "name email",
       })
       .sort({ changedOn: -1 })
       .skip(skip)
@@ -1104,34 +1233,34 @@ exports.getMobileAlarmLogs = async (req, res) => {
     res.json({
       status: "RS_OK",
       data: {
-        logs: mobileAlarmLogs.map(log => ({
+        logs: mobileAlarmLogs.map((log) => ({
           _id: log._id,
           accountLoginId: log.accountLoginId,
           accountDetails: {
             serverName: log.accountId?.ServerName,
-            agentHolderName: log.accountId?.agentHolderName
+            agentHolderName: log.accountId?.agentHolderName,
           },
           agentHolder: {
             name: log.agentHolderId?.name,
-            email: log.agentHolderId?.email
+            email: log.agentHolderId?.email,
           },
           mobileAlertStatus: log.mobileAlertStatus,
-          changedOn: log.changedOn
+          changedOn: log.changedOn,
         })),
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalLogs / limit),
           totalLogs: totalLogs,
-          logsPerPage: limit
-        }
+          logsPerPage: limit,
+        },
       },
-      message: "Accounts Log Fetched Successfully"
+      message: "Accounts Log Fetched Successfully",
     });
   } catch (error) {
-    console.error('Error in getMobileAlarmLogs:', error);
+    console.error("Error in getMobileAlarmLogs:", error);
     res.status(500).json({
       status: "RS_ERROR",
-      message: 'Internal server error'
+      message: "Internal server error",
     });
   }
 };
