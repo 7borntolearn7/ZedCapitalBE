@@ -29,6 +29,7 @@ exports.createAccount = async (req, res) => {
     } = req.body;
 
     const userFcmTokens = req.user.fcmtokens || [];
+
     // Ensure all required base fields are present
     if (!AccountLoginId || !AccountPassword || !ServerName) {
       return res.status(400).json({
@@ -40,10 +41,11 @@ exports.createAccount = async (req, res) => {
     // Validate equity threshold combinations
     const hasLowerLimit = EquityType && EquityThreshhold !== undefined;
     const hasUpperLimit = UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined;
-    const hasIncompleteLimit = (EquityType && !EquityThreshhold) || 
-                              (!EquityType && EquityThreshhold !== undefined) ||
-                              (UpperLimitEquityType && !UpperLimitEquityThreshhold) || 
-                              (!UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined);
+    const hasIncompleteLimit =
+      (EquityType && !EquityThreshhold) ||
+      (!EquityType && EquityThreshhold !== undefined) ||
+      (UpperLimitEquityType && !UpperLimitEquityThreshhold) ||
+      (!UpperLimitEquityType && UpperLimitEquityThreshhold !== undefined);
 
     if (!hasLowerLimit && !hasUpperLimit) {
       return res.status(400).json({
@@ -81,6 +83,28 @@ exports.createAccount = async (req, res) => {
       }
     }
 
+    // New validation for equity thresholds when types are the same
+    if (hasLowerLimit && hasUpperLimit && EquityType === UpperLimitEquityType) {
+      const lowerThreshold = parseFloat(EquityThreshhold);
+      const upperThreshold = parseFloat(UpperLimitEquityThreshhold);
+
+      if (EquityType === 'fixed') {
+        if (upperThreshold < lowerThreshold) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
+          });
+        }
+      } else if (EquityType === 'percentage') {
+        if (upperThreshold < lowerThreshold) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
+          });
+        }
+      }
+    }
+
     // Check if an account with the same AccountLoginId already exists
     const existingAccount = await Account.findOne({ AccountLoginId });
     if (existingAccount) {
@@ -99,7 +123,6 @@ exports.createAccount = async (req, res) => {
         });
       }
 
-      // Ensure the provided agentId exists in the database and is active
       const agent = await User.findById(agentId);
       if (!agent || agent.role !== 'agent') {
         return res.status(400).json({
@@ -108,7 +131,6 @@ exports.createAccount = async (req, res) => {
         });
       }
 
-      // Check if the agent is active
       if (!agent.active) {
         return res.status(400).json({
           status: "RS_ERROR",
@@ -130,19 +152,34 @@ exports.createAccount = async (req, res) => {
       });
     }
 
-    // Create the new account with all fields
+    // Determine the mobileAlert field value
+    const existingAccountsForAgent = await Account.find({ agentHolderId: accountHolder });
+
+    let mobileAlert = true;
+    if (existingAccountsForAgent.length > 0) {
+      const allWithMobileAlertTrue = existingAccountsForAgent.every(account => account.mobileAlert === true);
+      const allWithMobileAlertFalse = existingAccountsForAgent.every(account => account.mobileAlert === false);
+
+      if (allWithMobileAlertTrue) {
+        mobileAlert = true;
+      } else if (allWithMobileAlertFalse) {
+        mobileAlert = false;
+      }
+    }
+
     const newAccount = new Account({
       AccountLoginId,
-      AccountPassword, // Store password as-is without hashing
+      AccountPassword, 
       ServerName,
       EquityType: hasLowerLimit ? EquityType : undefined,
       EquityThreshhold: hasLowerLimit ? EquityThreshhold : undefined,
       UpperLimitEquityType: hasUpperLimit ? UpperLimitEquityType : undefined,
-      UpperLimitEquityThreshhold: hasUpperLimit ? UpperLimitEquityThreshhold : undefined,
+      UpperLimitEquityThreshhold: hasUpperLimitEquityThreshhold ? UpperLimitEquityThreshhold : undefined,
       messageCheck: messageCheck !== undefined ? messageCheck : true,
       emailCheck: emailCheck !== undefined ? emailCheck : true,
       UpperLimitMessageCheck: UpperLimitMessageCheck !== undefined ? UpperLimitMessageCheck : true,
       UpperLimitEmailCheck: UpperLimitEmailCheck !== undefined ? UpperLimitEmailCheck : true,
+      mobileAlert,
       createdBy: req.user.firstName,
       updatedBy: req.user.firstName,
       agentHolderId: accountHolder,
@@ -165,6 +202,7 @@ exports.createAccount = async (req, res) => {
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
+
 
 exports.updateAccount = async (req, res) => {
   try {
@@ -266,6 +304,27 @@ exports.updateAccount = async (req, res) => {
           status: "RS_ERROR",
           message: "Upper limit equity threshold must be between 0 and 100 when type is percentage",
         });
+      }
+    }
+
+    if (hasLowerLimit && hasUpperLimit && finalEquityType === finalUpperLimitEquityType) {
+      const lowerThreshold = parseFloat(finalEquityThreshhold);
+      const upperThreshold = parseFloat(finalUpperLimitEquityThreshhold);
+
+      if (finalEquityType === 'fixed') {
+        if (upperThreshold < lowerThreshold) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is fixed",
+          });
+        }
+      } else if (finalEquityType === 'percentage') {
+        if (upperThreshold < lowerThreshold) {
+          return res.status(400).json({
+            status: "RS_ERROR",
+            message: "Upper limit equity threshold cannot be less than lower limit equity threshold when type is percentage",
+          });
+        }
       }
     }
 
@@ -792,22 +851,39 @@ exports.updateAccountMobile = async (req, res) => {
     // Prepare update fields
     if (AccountPassword) updateFields.AccountPassword = AccountPassword;
     if (ServerName) updateFields.ServerName = ServerName;
-    
+
     // Validate and set Equity Type and Thresholds
+    const currentEquityType = EquityType || accountToUpdate.EquityType;
+    const currentUpperLimitEquityType = UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
+    const currentEquityThreshhold = EquityThreshhold !== undefined 
+      ? validateEquityThreshold(currentEquityType, EquityThreshhold)
+      : accountToUpdate.EquityThreshhold;
+    const currentUpperLimitEquityThreshhold = UpperLimitEquityThreshhold !== undefined
+      ? validateEquityThreshold(currentUpperLimitEquityType, UpperLimitEquityThreshhold)
+      : accountToUpdate.UpperLimitEquityThreshhold;
+
+    // Additional validation for threshold comparison
+    if (
+      (currentEquityType === 'fixed' && currentUpperLimitEquityType === 'fixed') ||
+      (currentEquityType === 'percentage' && currentUpperLimitEquityType === 'percentage')
+    ) {
+      if (currentUpperLimitEquityThreshhold < currentEquityThreshhold) {
+        return res.status(400).json({
+          status: "RS_ERROR",
+          message: "Upper limit equity threshold cannot be less than lower limit equity threshold"
+        });
+      }
+    }
+
+    // Set Equity Type and Thresholds
     if (EquityType) updateFields.EquityType = EquityType;
     if (EquityThreshhold !== undefined) {
-      updateFields.EquityThreshhold = validateEquityThreshold(
-        EquityType || accountToUpdate.EquityType, 
-        EquityThreshhold
-      );
+      updateFields.EquityThreshhold = currentEquityThreshhold;
     }
-    
+
     if (UpperLimitEquityType) updateFields.UpperLimitEquityType = UpperLimitEquityType;
     if (UpperLimitEquityThreshhold !== undefined) {
-      updateFields.UpperLimitEquityThreshhold = validateEquityThreshold(
-        UpperLimitEquityType || accountToUpdate.UpperLimitEquityType, 
-        UpperLimitEquityThreshhold
-      );
+      updateFields.UpperLimitEquityThreshhold = currentUpperLimitEquityThreshhold;
     }
 
     // Handle boolean fields
@@ -821,19 +897,18 @@ exports.updateAccountMobile = async (req, res) => {
 
     for (const [key, value] of Object.entries(booleanFields)) {
       if (value !== undefined) {
-        updateFields[key] = typeof value === "boolean" 
-          ? value 
+        updateFields[key] = typeof value === "boolean"
+          ? value
           : value.toLowerCase() === 'true';
       }
     }
-
 
     // Set update metadata
     if (req.user) updateFields.updatedBy = req.user.firstName;
     updateFields.updatedOn = Date.now();
 
     // Perform the update
-    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, { 
+    const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, {
       new: true,
       runValidators: true // This ensures mongoose schema validations are run
     });
@@ -849,18 +924,18 @@ exports.updateAccountMobile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating account:", error.message);
-    
+
     // Handle specific validation errors
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        status: "RS_ERROR", 
-        message: error.message 
+      return res.status(400).json({
+        status: "RS_ERROR",
+        message: error.message
       });
     }
 
-    res.status(500).json({ 
-      status: "RS_ERROR", 
-      message: error.message || "Internal Server Error" 
+    res.status(500).json({
+      status: "RS_ERROR",
+      message: error.message || "Internal Server Error"
     });
   }
 };
