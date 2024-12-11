@@ -139,11 +139,11 @@ exports.createAccount = async (req, res) => {
       }
 
       accountHolder = agentId;
-      agentHolderName = `${agent.firstName} ${agent.lastName}`;
+      agentHolderName = `${agent.firstName}`;
     } 
     else if (req.user.role === 'agent') {
       accountHolder = req.user.id;
-      agentHolderName = `${req.user.firstName} ${req.user.lastName}`;
+      agentHolderName = `${req.user.firstName}`;
     } 
     else {
       return res.status(403).json({
