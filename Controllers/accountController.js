@@ -984,8 +984,6 @@ exports.updateAccountMobile = async (req, res) => {
             UpperLimitEquityThreshhold
           )
         : accountToUpdate.UpperLimitEquityThreshhold;
-
-    // Additional validation for threshold comparison
     if (
       (currentEquityType === "fixed" &&
         currentUpperLimitEquityType === "fixed") ||
@@ -1003,8 +1001,6 @@ exports.updateAccountMobile = async (req, res) => {
         });
       }
     }
-
-    // Set Equity Type and Thresholds
     if (EquityType) updateFields.EquityType = EquityType;
     if (EquityThreshhold !== undefined) {
       updateFields.EquityThreshhold = currentEquityThreshhold;
@@ -1016,8 +1012,6 @@ exports.updateAccountMobile = async (req, res) => {
       updateFields.UpperLimitEquityThreshhold =
         currentUpperLimitEquityThreshhold;
     }
-
-    // Handle boolean fields
     const booleanFields = {
       messageCheck,
       emailCheck,
@@ -1033,14 +1027,13 @@ exports.updateAccountMobile = async (req, res) => {
       }
     }
 
-    // Set update metadata
     if (req.user) updateFields.updatedBy = req.user.firstName;
     updateFields.updatedOn = Date.now();
 
-    // Perform the update
+  
     const updatedAccount = await Account.findByIdAndUpdate(id, updateFields, {
       new: true,
-      runValidators: true, // This ensures mongoose schema validations are run
+      runValidators: true, 
     });
 
     if (!updatedAccount) {
