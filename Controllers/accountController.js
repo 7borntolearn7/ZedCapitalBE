@@ -973,11 +973,11 @@ exports.updateAccountMobile = async (req, res) => {
     const currentEquityType = EquityType || accountToUpdate.EquityType;
     const currentUpperLimitEquityType =
       UpperLimitEquityType || accountToUpdate.UpperLimitEquityType;
-    const currentEquityThreshhold =
+    let currentEquityThreshhold =
       EquityThreshhold !== undefined
         ? validateEquityThreshold(currentEquityType, EquityThreshhold)
         : accountToUpdate.EquityThreshhold;
-    const currentUpperLimitEquityThreshhold =
+     let currentUpperLimitEquityThreshhold =
       UpperLimitEquityThreshhold !== undefined
         ? validateEquityThreshold(
             currentUpperLimitEquityType,
@@ -992,7 +992,10 @@ exports.updateAccountMobile = async (req, res) => {
       (currentEquityType === "percentage" &&
         currentUpperLimitEquityType === "percentage")
     ) {
+      currentUpperLimitEquityThreshhold = parseFloat(currentUpperLimitEquityThreshhold);
+      currentEquityThreshhold = parseFloat(currentEquityThreshhold);
       if (currentUpperLimitEquityThreshhold < currentEquityThreshhold) {
+        console.log("yaha aaya kya idhar");
         return res.status(400).json({
           status: "RS_ERROR",
           message:
