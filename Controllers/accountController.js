@@ -714,20 +714,14 @@ exports.getAccountAlert = async (req, res) => {
       }
     } else {
       if (loggedInUser.role === "admin") {
-        // Admin can see all alerts
         accountAlerts = await AccountAlert.find();
       } else if (loggedInUser.role === "agent") {
-        // Get all accounts belonging to the agent
-        console.log("kya yaha aaya");
         const agentAccounts = await Account.find({
           agentHolderId: loggedInUser.id,
         });
         const accountLoginIds = agentAccounts.map(
           (account) => account.AccountLoginId
         );
-        console.log("yeh hai loginIds", accountLoginIds);
-
-        // Get alerts for all accounts belonging to the agent
         accountAlerts = await AccountAlert.find({
           AccountLoginId: { $in: accountLoginIds },
         });
@@ -929,15 +923,12 @@ exports.updateAccountMobile = async (req, res) => {
       active,
     } = req.body;
 
-    // Find the account to update
     const accountToUpdate = await Account.findById(id);
     if (!accountToUpdate) {
       return res
         .status(404)
         .json({ status: "RS_ERROR", message: "Account not found" });
     }
-
-    // Authorization checks
     const authorizeUpdate = (user, account) => {
       if (user.role === "admin") return true;
       if (user.role === "agent") {
@@ -993,7 +984,6 @@ exports.updateAccountMobile = async (req, res) => {
       currentUpperLimitEquityThreshhold = parseFloat(currentUpperLimitEquityThreshhold);
       currentEquityThreshhold = parseFloat(currentEquityThreshhold);
       if (currentUpperLimitEquityThreshhold < currentEquityThreshhold) {
-        console.log("yaha aaya kya idhar");
         return res.status(400).json({
           status: "RS_ERROR",
           message:

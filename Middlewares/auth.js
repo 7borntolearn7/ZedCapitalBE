@@ -18,7 +18,6 @@ exports.auth = async (req, res, next) => {
     // Continue to the next middleware or route
     next();
   } catch (error) {
-    //console.log(error.name);
     console.error("Error occurred during authentication:", error);
 
     // Handle different types of errors

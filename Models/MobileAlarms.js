@@ -36,8 +36,6 @@ const MobileAlarmsLog = mongoose.model("MobileAlertLog", MobileAlarmsSchema);
 
 const createMobileAlarmLogEntry = async (account, mobileAlertStatus) => {
   try {
-    console.log("yeh hai account",account);
-    console.log("Yeh hai mobileAlertStatus",mobileAlertStatus);
     await MobileAlarmsLog.create({
       accountId: account._id,
       accountLoginId: account.AccountLoginId,

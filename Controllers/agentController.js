@@ -81,7 +81,6 @@ exports.updateAgent = async (req, res) => {
     const { firstName, lastName, mobile, active, password } = req.body;
     const updateFields = {};
 
-    console.log(id);
 
     // Check for existing mobile number if provided
     if (mobile) {
@@ -110,7 +109,6 @@ exports.updateAgent = async (req, res) => {
       
       // Check if the provided password matches the stored hashed password
       const isPasswordValid = await bcrypt.compare(password, loggedInUser.password);
-      console.log("kya yeh valid hai",isPasswordValid);
       if (!isPasswordValid) {
         return res.status(400).json({ status: "RS_ERROR", message: "Incorrect user password" });
       }
@@ -134,10 +132,7 @@ exports.updateAgent = async (req, res) => {
     // If the agent is set to inactive, update related accounts
     if (updateFields.active === false) {
       try {
-        console.log(id);
         const accountsToUpdate = await Account.find({ agentHolderId: id }); // Filter accounts related to the agent
-        console.log("Accounts found for update:", accountsToUpdate);
-
         if (accountsToUpdate.length > 0) {
           const bulkOps = accountsToUpdate.map(account => ({
             updateOne: {
@@ -147,7 +142,6 @@ exports.updateAgent = async (req, res) => {
           }));
 
           const result = await Account.bulkWrite(bulkOps);
-          console.log(result);
         }
       } catch (error) {
         console.error("Error updating accounts:", error);
@@ -156,7 +150,7 @@ exports.updateAgent = async (req, res) => {
 
     res.json({ status: "RS_OK", data: updatedAgent, message: "Agent Updated Successfully" });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };

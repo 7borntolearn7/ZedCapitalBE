@@ -136,49 +136,13 @@ exports.createAdmin = async (req, res) => {
     // Respond with success without the password field
     res.json({ status: "RS_OK", data: adminData });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({
       status: "RS_ERROR",
       message: "Internal Server Error",
     });
   }
 }
-
-
-// exports.updateAdmin = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const updateFields = {};
-//     const { firstName, lastName, email, mobile,active } = req.body;
-//     if (firstName) updateFields.firstName = firstName;
-//     if (lastName) updateFields.lastName = lastName;
-//     if (email) updateFields.email = email;
-//     if (mobile) updateFields.mobile = mobile;
-//     if (typeof active === "boolean") {
-//       updateFields.active = active.toString();
-//     } else if (typeof active === "string") {
-//       updateFields.active = active;
-//     }
-//     if (req.user) updateFields.updatedBy = req.user.firstName;
-
-//     const updatedAdmin = await User.findByIdAndUpdate(id, updateFields, {
-//       new: true,
-//     }).select("-jwtTokens");
-
-//     if (!updatedAdmin) {
-//       return res
-//         .status(404)
-//         .json({ status: "RS_ERROR", message: "Admin not found" });
-//     }
-
-//     res.json({ status: "RS_OK", data: updatedAdmin });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ status: "RS_ERROR", message: "Internal Server Error" });
-//   }
-// };
-
 
 exports.getAllAdmins = async (req, res) => {
   try {
@@ -197,25 +161,6 @@ exports.getAllAdmins = async (req, res) => {
       .json({ status: "RS_ERROR", message: "Internal Server Error" });
   }
 };
-
-// exports.deleteAdmin = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const deletedAdmin = await User.findByIdAndDelete(id);
-
-//     if (!deletedAdmin) {
-//       return res
-//         .status(404)
-//         .json({ status: "RS_ERROR", message: "Admin not found" });
-//     }
-
-//     res.json({ status: "RS_OK", message: "Admin deleted successfully" });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ status: "RS_ERROR", message: "Internal Server Error" });
-//   }
-// };
 
 exports.changePassword = async (req, res) => {
   try {
@@ -376,7 +321,6 @@ exports.mobilelogin = async (req, res) => {
     });
   }
 };
-
 
 exports.mobilelogout = async (req, res) => {
   try {
